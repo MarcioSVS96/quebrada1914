@@ -12,6 +12,7 @@ export default function AdminDashboard() {
   const [messages, setMessages] = useState<ContactMessage[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTaskText, setNewTaskText] = useState("")
+  const [selectedDay, setSelectedDay] = useState("segunda")
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "messages" | "tasks">("dashboard")
   const [showProductForm, setShowProductForm] = useState(false)
@@ -39,31 +40,51 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === "tasks") {
+      fetchTasks(selectedDay)
+    }
+  }, [activeTab, selectedDay])
 
   const loadData = async () => {
     try {
-      const categoriesRes = await fetch("/api/categories")
-      const productsRes = await fetch("/api/products")
-      const messagesRes = await fetch("/api/messages")
-      const tasksRes = await fetch("/api/tasks")
-
-      const categoriesData = await categoriesRes.json()
-      const productsData = await productsRes.json()
-      const messagesData = await messagesRes.json()
-      const tasksData = await tasksRes.json()
-
       // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
       const mapId = (item: any) => ({ ...item, id: item._id })
+
+      const [categoriesRes, productsRes, messagesRes] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/products"),
+        fetch("/api/messages"),
+      ])
+
+      const [categoriesData, productsData, messagesData] = await Promise.all([
+        categoriesRes.json(),
+        productsRes.json(),
+        messagesRes.json(),
+      ])
 
       if (categoriesData) setCategories(categoriesData.map(mapId))
       if (productsData) setProducts(productsData.map(mapId))
       if (messagesData) setMessages(messagesData.map(mapId))
-      if (tasksData) setTasks(tasksData.map(mapId))
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchTasks = async (day: string) => {
+    try {
+      const res = await fetch(`/api/tasks?day=${day}`)
+      if (!res.ok) throw new Error("Failed to fetch tasks")
+      const tasksData = await res.json()
+      const mapId = (item: any) => ({ ...item, id: item._id })
+      setTasks(tasksData.map(mapId))
+    } catch (error) {
+      console.error("Error loading tasks:", error)
+      setTasks([]) // Limpa as tarefas em caso de erro
     }
   }
 
@@ -225,12 +246,11 @@ export default function AdminDashboard() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: newTaskText }),
+        body: JSON.stringify({ text: newTaskText, day: selectedDay }),
       })
       if (!res.ok) throw new Error("Failed to add task")
-      const addedTask = await res.json()
-      setTasks([{ ...addedTask, id: addedTask._id }, ...tasks])
       setNewTaskText("")
+      fetchTasks(selectedDay) // Recarrega as tarefas do dia
     } catch (error) {
       console.error("Error adding task:", error)
       alert("Erro ao adicionar tarefa")
@@ -246,7 +266,7 @@ export default function AdminDashboard() {
       })
       if (!res.ok) throw new Error("Failed to update task")
       const updatedTask = await res.json()
-      setTasks(tasks.map((t) => (t.id === task.id ? { ...updatedTask, id: updatedTask._id } : t)))
+      setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: updatedTask.completed } : t)))
     } catch (error) {
       console.error("Error updating task:", error)
       alert("Erro ao atualizar tarefa")
@@ -258,7 +278,7 @@ export default function AdminDashboard() {
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete task")
-      setTasks(tasks.filter((t) => t.id !== id))
+      fetchTasks(selectedDay) // Recarrega as tarefas do dia
     } catch (error) {
       console.error("Error deleting task:", error)
       alert("Erro ao deletar tarefa")
@@ -604,6 +624,30 @@ export default function AdminDashboard() {
         {activeTab === "tasks" && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
+
+            <div className="flex justify-center gap-2 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+              {[
+                { key: "segunda", name: "Seg" },
+                { key: "terca", name: "Ter" },
+                { key: "quarta", name: "Qua" },
+                { key: "quinta", name: "Qui" },
+                { key: "sexta", name: "Sex" },
+                { key: "sabado", name: "Sáb" },
+                { key: "domingo", name: "Dom" },
+              ].map((day) => (
+                <button
+                  key={day.key}
+                  onClick={() => setSelectedDay(day.key)}
+                  className={`px-4 py-2 rounded-md font-bold transition-colors text-sm ${
+                    selectedDay === day.key
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
+                  }`}
+                >
+                  {day.name}
+                </button>
+              ))}
+            </div>
 
             <form onSubmit={handleAddTask} className="flex gap-4 mb-6 bg-gray-900/50 p-6 rounded-lg border border-gray-800">
               <input

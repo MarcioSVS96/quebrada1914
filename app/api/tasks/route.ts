@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import clientPromise from '@/lib/mongodb'
 
 // Listar tarefas do usuário logado
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -14,11 +14,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
 
+  const { searchParams } = new URL(request.url)
+  const day = searchParams.get('day')
+
+  if (!day) {
+    return NextResponse.json({ error: 'O parâmetro "day" é obrigatório' }, { status: 400 })
+  }
+
   try {
     const client = await clientPromise
     const db = client.db(process.env.MONGODB_DB)
     
-    const tasks = await db.collection('tasks').find({ userId: session.user.id }).sort({ createdAt: -1 }).toArray()
+    const tasks = await db.collection('tasks').find({ userId: session.user.id, day }).sort({ createdAt: -1 }).toArray()
     return NextResponse.json(tasks)
   } catch (e) {
     console.error(e)
@@ -38,18 +45,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { text } = await request.json()
-    if (!text) {
-      return NextResponse.json({ error: 'O texto da tarefa é obrigatório' }, { status: 400 })
+    const { text, day } = await request.json()
+    if (!text || !day) {
+      return NextResponse.json({ error: 'O texto e o dia da tarefa são obrigatórios' }, { status: 400 })
     }
 
     const client = await clientPromise
     const db = client.db(process.env.MONGODB_DB)
 
     const newTask = {
-      
       userId: session.user.id,
       text,
+      day,
       completed: false,
       createdAt: new Date(),
     }
