@@ -22,24 +22,24 @@ export const authOptions: AuthOptions = {
           return null
         }
 
-        const client: MongoClient = await clientPromise
-        const db = client.db(process.env.MONGODB_DB)
-        const usersCollection = db.collection("users")
+        // A conexão com o MongoDB já é gerenciada pelo adapter, podemos reutilizá-la.
+        const client = await clientPromise
+        const usersCollection = client.db(process.env.MONGODB_DB).collection("users")
 
         const user = await usersCollection.findOne({ email: credentials.email })
 
         if (!user) {
+          console.log("Usuário não encontrado")
           return null
         }
 
         const passwordsMatch = await bcrypt.compare(credentials.password, user.password as string)
 
         if (!passwordsMatch) {
+          console.log("Senha incorreta")
           return null
         }
 
-        // The user object from MongoDB has an `_id` of type ObjectId.
-        // The NextAuth User model expects an `id` of type string.
         return {
           id: user._id.toString(),
           name: user.name,

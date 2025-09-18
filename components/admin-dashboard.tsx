@@ -2,20 +2,21 @@
 
 import type React from "react"
 import { useState, useEffect } from "react";
-import type { Product, Category, ContactMessage, Task } from "@/types";
+import type { Product, Category, ContactMessage, Task, User } from "@/types";
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 export default function AdminDashboard() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTaskText, setNewTaskText] = useState("")
   const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "messages" | "tasks">("dashboard")
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "users" | "messages" | "tasks">("dashboard")
   const [showProductForm, setShowProductForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -39,6 +40,14 @@ export default function AdminDashboard() {
     icon: "",
   })
 
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    password: "",
+  })
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [showUserForm, setShowUserForm] = useState(false)
+
   useEffect(() => {
     loadData()
   }, [activeTab])
@@ -55,21 +64,24 @@ export default function AdminDashboard() {
       // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
       const mapId = (item: any) => ({ ...item, id: item._id.toString() })
 
-      const [categoriesRes, productsRes, messagesRes] = await Promise.all([
+      const [categoriesRes, productsRes, messagesRes, usersRes] = await Promise.all([
         fetch("/api/categories"),
         fetch("/api/products"),
         fetch("/api/messages"),
+        fetch("/api/users"),
       ])
 
-      const [categoriesData, productsData, messagesData] = await Promise.all([
+      const [categoriesData, productsData, messagesData, usersData] = await Promise.all([
         categoriesRes.json(),
         productsRes.json(),
         messagesRes.json(),
+        usersRes.json(),
       ])
 
       if (categoriesData) setCategories(categoriesData.map(mapId))
       if (productsData) setProducts(productsData.map(mapId))
       if (messagesData) setMessages(messagesData.map(mapId))
+      if (usersData) setUsers(usersData.map(mapId))
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -291,6 +303,72 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to add user")
+      }
+
+      const data = await res.json()
+      if (data) {
+        setUsers([{ ...data, id: data._id.toString() }, ...users])
+        setNewUser({ name: "", email: "", password: "" })
+        setShowUserForm(false)
+      }
+    } catch (error) {
+      console.error("Error adding user:", error)
+      alert(`Erro ao adicionar usuário: ${error instanceof Error ? error.message : "Erro desconhecido"}`)
+    }
+  }
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+
+    try {
+      const res = await fetch(`/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser), // A senha é opcional aqui
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to update user")
+      }
+
+      const data = await res.json()
+      if (data) {
+        setUsers(users.map((u) => (u.id === editingUser.id ? { ...data, id: data._id.toString() } : u)))
+        setEditingUser(null)
+        setNewUser({ name: "", email: "", password: "" })
+        setShowUserForm(false)
+      }
+    } catch (error) {
+      console.error("Error updating user:", error)
+      alert(`Erro ao atualizar usuário: ${error instanceof Error ? error.message : "Erro desconhecido"}`)
+    }
+  }
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm("Tem certeza que deseja deletar este usuário?")) return
+    try {
+      await fetch(`/api/users/${id}`, { method: "DELETE" })
+      setUsers(users.filter((u) => u.id !== id))
+    } catch (error) {
+      console.error("Error deleting user:", error)
+      alert("Erro ao deletar usuário")
+    }
+  }
+
   const startEditProduct = (product: Product) => {
     setEditingProduct(product)
     setNewProduct({
@@ -314,6 +392,17 @@ export default function AdminDashboard() {
     })
     setShowCategoryForm(true)
   }
+
+  const startEditUser = (user: User) => {
+    setEditingUser(user)
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      password: "", // Deixar a senha em branco para não forçar a alteração
+    })
+    setShowUserForm(true)
+  }
+
 
   const handleSignOut = async () => {
     await signOut() // O NextAuth irá redirecionar para a página inicial ("/") conforme configurado.
@@ -356,6 +445,7 @@ export default function AdminDashboard() {
               { id: "dashboard", label: "DASHBOARD", icon: "📊" },
               { id: "products", label: "PRODUTOS", icon: "👕" },
               { id: "categories", label: "CATEGORIAS", icon: "📁" },
+              { id: "users", label: "USUÁRIOS", icon: "👥" },
               { id: "messages", label: "MENSAGENS", icon: "💬" },
               { id: "tasks", label: "TAREFAS", icon: "✅" },
             ].map((tab) => (
@@ -389,6 +479,10 @@ export default function AdminDashboard() {
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-blue-500">{products.filter((p) => p.featured).length}</div>
                 <div className="text-gray-400 font-bold tracking-wide text-sm">DESTAQUES</div>
+              </div>
+              <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
+                <div className="text-3xl font-bold text-cyan-500">{users.length}</div>
+                <div className="text-gray-400 font-bold tracking-wide text-sm">USUÁRIOS</div>
               </div>
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-yellow-500">{messages.length}</div>
@@ -583,6 +677,60 @@ export default function AdminDashboard() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "users" && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold tracking-wide">GERENCIAR USUÁRIOS</h2>
+              <button
+                onClick={() => {
+                  setEditingUser(null)
+                  setNewUser({ name: "", email: "", password: "" })
+                  setShowUserForm(true)
+                }}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
+              >
+                + ADICIONAR USUÁRIO
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              {users.map((user) => (
+                <div key={user.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-4">
+                      <div className="bg-gray-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold">{user.name}</h3>
+                        <p className="text-gray-400">{user.email}</p>
+                        {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+                          <span className="text-xs font-bold text-red-500">ADMIN</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => startEditUser(user)}
+                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
+                      >
+                        EDITAR
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition disabled:bg-gray-500"
+                        disabled={user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL}
+                      >
+                        DELETAR
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -904,6 +1052,66 @@ export default function AdminDashboard() {
                     setShowCategoryForm(false)
                     setEditingCategory(null)
                     setNewCategory({ name: "", display_name: "", icon: "" })
+                  }}
+                  className="bg-gray-600 text-white px-6 py-3 rounded font-bold hover:bg-gray-700 transition"
+                >
+                  CANCELAR
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showUserForm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-lg p-8 max-w-lg w-full">
+            <h3 className="text-2xl font-bold mb-6">{editingUser ? "EDITAR USUÁRIO" : "ADICIONAR USUÁRIO"}</h3>
+            <form onSubmit={editingUser ? handleUpdateUser : handleAddUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold mb-2">NOME</label>
+                <input
+                  type="text"
+                  value={newUser.name}
+                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  className="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">EMAIL</label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">SENHA</label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white"
+                  placeholder={editingUser ? "Deixe em branco para não alterar" : ""}
+                  required={!editingUser}
+                />
+              </div>
+              <div className="flex space-x-4 pt-4">
+                <button
+                  type="submit"
+                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
+                >
+                  {editingUser ? "ATUALIZAR" : "ADICIONAR"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserForm(false)
+                    setEditingUser(null)
+                    setNewUser({ name: "", email: "", password: "" })
                   }}
                   className="bg-gray-600 text-white px-6 py-3 rounded font-bold hover:bg-gray-700 transition"
                 >
