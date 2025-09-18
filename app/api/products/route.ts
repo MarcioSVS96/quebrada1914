@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { z } from 'zod'
 
 export async function GET() {
   try {
@@ -20,23 +21,34 @@ export async function GET() {
   }
 }
 
+// Schema de validação com Zod
+const productSchema = z.object({
+  name: z.string().min(1, { message: 'O nome é obrigatório' }),
+  price: z.number().positive({ message: 'O preço deve ser um número positivo' }),
+  category: z.string().min(1, { message: 'A categoria é obrigatória' }),
+  description: z.string().optional(),
+  image: z.string().url({ message: 'A imagem deve ser uma URL válida' }).optional(),
+  stock: z.number().int().min(0, { message: 'O estoque não pode ser negativo' }),
+  featured: z.boolean().default(false),
+})
+
 export async function POST(request: Request) {
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
     const body = await request.json()
+    const validation = productSchema.safeParse(body)
 
-    // Garante que apenas os campos esperados sejam inseridos
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Dados inválidos', details: validation.error.flatten().fieldErrors }, { status: 400 })
+    }
+
+    // Use the validated data from Zod to ensure type safety and include defaults.
     const newProductData = {
-      name: body.name,
-      price: body.price,
-      category: body.category,
-      description: body.description,
-      image: body.image,
-      stock: body.stock,
-      featured: body.featured,
+      ...validation.data,
       created_at: new Date().toISOString(),
     }
+
+    const client = await clientPromise
+    const db = client.db(process.env.MONGODB_DB)
 
     const result = await db.collection('products').insertOne(newProductData)
     const insertedProduct = await db.collection('products').findOne({ _id: result.insertedId })
