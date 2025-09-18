@@ -21,7 +21,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const db = client.db(process.env.MONGODB_DB)
 
     const result = await db.collection('tasks').findOneAndUpdate(
-      { _id: new ObjectId(params.id), userId: session.user.id }, // Garante que o usuário só pode editar suas próprias tarefas
+      { _id: new ObjectId(params.id) }, // Admin pode editar qualquer tarefa
       { $set: { completed } },
       { returnDocument: 'after' }
     )
@@ -53,8 +53,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const db = client.db(process.env.MONGODB_DB)
 
     const result = await db.collection('tasks').deleteOne({
-      _id: new ObjectId(params.id),
-      userId: session.user.id, // Garante que o usuário só pode deletar suas próprias tarefas
+      _id: new ObjectId(params.id) // Admin pode deletar qualquer tarefa
     })
 
     if (result.deletedCount === 0) {

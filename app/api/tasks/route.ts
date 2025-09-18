@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise
     const db = client.db(process.env.MONGODB_DB)
     
-    const tasks = await db.collection('tasks').find({ userId: session.user.id, day }).sort({ createdAt: -1 }).toArray()
+    // Admin pode ver todas as tarefas de um determinado dia
+    const tasks = await db.collection('tasks').find({ day }).sort({ createdAt: -1 }).toArray()
     return NextResponse.json(tasks)
   } catch (e) {
     console.error(e)

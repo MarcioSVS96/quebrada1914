@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
-      const mapId = (item: any) => ({ ...item, id: item._id })
+      const mapId = (item: any) => ({ ...item, id: item._id.toString() })
 
       const [categoriesRes, productsRes, messagesRes] = await Promise.all([
         fetch("/api/categories"),
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id } : p)))
+        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id.toString() } : p)))
         setEditingProduct(null)
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
         setShowProductForm(false)
@@ -316,8 +316,7 @@ export default function AdminDashboard() {
   }
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false })
-    router.push("/login")
+    await signOut() // O NextAuth irá redirecionar para a página inicial ("/") conforme configurado.
   }
 
   if (isLoading) {
