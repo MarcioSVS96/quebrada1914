@@ -1,26 +1,26 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { withAuth } from "next-auth/middleware"
+import { NextResponse } from "next/server"
 
-// Esta função será executada para cada requisição que corresponder ao `matcher`
-export function middleware(request: NextRequest) {
-  // Aqui você pode adicionar sua lógica.
-  // Por exemplo, verificar se o usuário está autenticado,
-  // redirecionar para outra página, etc.
+export default withAuth(
+  // `withAuth` estende o objeto `req` com o token do usuário.
+  function middleware(req) {
+    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
+    const isAdminUser = req.nextauth.token?.email === process.env.ADMIN_EMAIL
 
-  console.log('Middleware executado para a rota:', request.nextUrl.pathname);
+    // Se a rota é de admin e o usuário não é o admin, redireciona para a página de não autorizado.
+    if (isAdminRoute && !isAdminUser) {
+      return NextResponse.rewrite(new URL("/auth/unauthorized", req.url))
+    }
+  },
+  {
+    callbacks: {
+      // O middleware só será invocado se o token existir (usuário logado).
+      authorized: ({ token }) => !!token,
+    },
+  }
+)
 
-  // Continua o fluxo da requisição
-  return NextResponse.next();
-}
-
-// O objeto `config` permite especificar em quais rotas o middleware deve ser executado.
-// Isso evita que ele rode em todas as requisições, como para arquivos de imagem ou CSS.
 export const config = {
-  /*
-   * Corresponde a todas as rotas, exceto para:
-   * - rotas da API (api/)
-   * - rotas internas do Next.js (_next/)
-   * - arquivos estáticos (qualquer arquivo com um ponto, como .png, .ico)
-   */
-  matcher: '/((?!api|_next/static|favicon.ico).*)',
+  // Protege todas as rotas de administrador.
+  matcher: ["/admin/:path*"],
 };

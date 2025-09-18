@@ -10,6 +10,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  // Apenas o administrador pode modificar tarefas
+  if (session.user.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
 
   try {
     const { completed } = await request.json()
@@ -17,7 +21,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const db = client.db(process.env.MONGODB_DB)
 
     const result = await db.collection('tasks').findOneAndUpdate(
-      { _id: new ObjectId(params.id), userId: (session.user as any).id }, // Garante que o usuário só pode editar suas próprias tarefas
+      { _id: new ObjectId(params.id), userId: session.user.id }, // Garante que o usuário só pode editar suas próprias tarefas
       { $set: { completed } },
       { returnDocument: 'after' }
     )
@@ -39,6 +43,10 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  // Apenas o administrador pode deletar tarefas
+  if (session.user.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
 
   try {
     const client = await clientPromise
@@ -59,4 +67,3 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ error: 'Erro ao deletar tarefa' }, { status: 500 })
   }
 }
-

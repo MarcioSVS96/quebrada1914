@@ -1,14 +1,13 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -17,48 +16,30 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient()
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (session?.user?.email === "quebrada1914@outlook.com") {
-        router.push("/admin")
-      }
-    }
-
-    checkAuth()
-  }, [router])
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
-    // Check if email is the authorized one
-    if (email !== "quebrada1914@outlook.com") {
-      setError("Acesso negado! Apenas o administrador autorizado pode entrar.")
-      setIsLoading(false)
-      return
-    }
-
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const result = await signIn("credentials", {
+        redirect: false,
         email,
         password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/admin`,
-        },
       })
 
-      if (error) throw error
+      if (result?.error) {
+        setError("Credenciais inválidas. Verifique seu email e senha.")
+        setIsLoading(false)
+        return
+      }
 
-      router.push("/admin")
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Erro ao fazer login")
+      // O middleware cuidará do redirecionamento e da verificação de admin.
+      if (result?.ok) {
+        router.push("/admin")
+      }
+    } catch (loginError: unknown) {
+      setError(loginError instanceof Error ? loginError.message : "Ocorreu um erro ao tentar fazer login.")
     } finally {
       setIsLoading(false)
     }

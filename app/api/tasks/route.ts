@@ -9,6 +9,10 @@ export async function GET() {
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  // Apenas o administrador pode ver as tarefas
+  if (session.user.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
 
   try {
     const client = await clientPromise
@@ -27,6 +31,10 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session || !session.user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+  // Apenas o administrador pode criar tarefas
+  if (session.user.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
 
   try {

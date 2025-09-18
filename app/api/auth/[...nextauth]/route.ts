@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import clientPromise from "@/lib/mongodb"
 import bcrypt from "bcryptjs"
-import { MongoClient } from "mongodb"
+import { User } from "next-auth"
 
 export const authOptions = {
   adapter: MongoDBAdapter(clientPromise, {
@@ -44,9 +44,25 @@ export const authOptions = {
   session: {
     strategy: "jwt" as const,
   },
+  callbacks: {
+        async session({ session, token }) {
+            if (token && session.user) {
+                session.user.id = token.id as string;
+                session.user.email = token.email;
+            }
+            return session;
+        },
+        async jwt({ token, user }) {
+            if (user) {
+                token.id = user.id;
+                token.email = user.email;
+            }
+            return token;
+        }
+    },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
-    signIn: "/login",
+    signIn: "/auth/login"
   },
 }
 

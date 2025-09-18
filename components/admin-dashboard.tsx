@@ -254,6 +254,7 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteTask = async (id: string) => {
+    if (!confirm("Tem certeza que deseja deletar esta tarefa?")) return
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete task")
@@ -597,6 +598,56 @@ export default function AdminDashboard() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "tasks" && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
+
+            <form onSubmit={handleAddTask} className="flex gap-4 mb-6 bg-gray-900/50 p-6 rounded-lg border border-gray-800">
+              <input
+                type="text"
+                value={newTaskText}
+                onChange={(e) => setNewTaskText(e.target.value)}
+                placeholder="O que precisa ser feito?"
+                className="flex-grow bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition">
+                ADICIONAR TAREFA
+              </button>
+            </form>
+
+            <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+              <ul className="space-y-3">
+                {tasks.sort((a, b) => Number(a.completed) - Number(b.completed)).map((task) => (
+                  <li key={task.id} className="flex items-center justify-between bg-black/50 p-4 rounded-lg border border-gray-700">
+                    <div className="flex items-center gap-4 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={task.completed}
+                        onChange={() => handleToggleTask(task)}
+                        className="h-6 w-6 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
+                      />
+                      <span
+                        className={`text-lg ${
+                          task.completed ? "line-through text-gray-500" : "text-white"
+                        }`}
+                      >
+                        {task.text}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition text-xs"
+                    >
+                      DELETAR
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {tasks.length === 0 && <p className="text-gray-400 text-center py-4">Nenhuma tarefa encontrada.</p>}
+            </div>
           </div>
         )}
       </main>
