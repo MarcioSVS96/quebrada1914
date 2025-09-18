@@ -2,29 +2,12 @@
 
 import { useState, useEffect } from "react"
 
-interface Product {
-  id: number
-  name: string
-  price: number
-  category: string
-  description: string
-  image: string | null
-  stock: number
-  featured: boolean
-  created_at: string
-}
-
-interface Category {
-  id: number
-  name: string
-  display_name: string
-  icon: string
-}
+import type { Product, Category } from "@/types"
 
 interface ProductsSectionProps {
   products: Product[]
   categories: Category[]
-  onAddToCart: (productId: number) => void
+  onAddToCart: (productId: string) => void
 }
 
 export default function ProductsSection({ products, categories, onAddToCart }: ProductsSectionProps) {

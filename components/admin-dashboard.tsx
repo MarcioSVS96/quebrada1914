@@ -1,41 +1,25 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState, useEffect } from "react";
+import type { Product, Category, ContactMessage, Task } from "@/types";
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
-
-interface Product {
-  id: number
-  name: string
-  price: number
-  category: string
-  description: string
-  image: string | null
-  stock: number
-  featured: boolean
-  created_at: string
-}
-
-interface Category {
-  id: number
-  name: string
-  display_name: string
-  icon: string
-}
 
 export default function AdminDashboard() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [messages, setMessages] = useState<ContactMessage[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [newTaskText, setNewTaskText] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories">("dashboard")
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "messages" | "tasks">("dashboard")
   const [showProductForm, setShowProductForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const { data: session } = useSession()
   const router = useRouter()
-  const supabase = createClient()
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -59,14 +43,23 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const { data: categoriesData } = await supabase.from("categories").select("*").order("created_at")
-      const { data: productsData } = await supabase
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false })
+      const categoriesRes = await fetch("/api/categories")
+      const productsRes = await fetch("/api/products")
+      const messagesRes = await fetch("/api/messages")
+      const tasksRes = await fetch("/api/tasks")
 
-      if (categoriesData) setCategories(categoriesData)
-      if (productsData) setProducts(productsData)
+      const categoriesData = await categoriesRes.json()
+      const productsData = await productsRes.json()
+      const messagesData = await messagesRes.json()
+      const tasksData = await tasksRes.json()
+
+      // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
+      const mapId = (item: any) => ({ ...item, id: item._id })
+
+      if (categoriesData) setCategories(categoriesData.map(mapId))
+      if (productsData) setProducts(productsData.map(mapId))
+      if (messagesData) setMessages(messagesData.map(mapId))
+      if (tasksData) setTasks(tasksData.map(mapId))
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -77,12 +70,17 @@ export default function AdminDashboard() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const { data, error } = await supabase.from("products").insert([newProduct]).select()
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProduct),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to add product")
 
+      const data = await res.json()
       if (data) {
-        setProducts([...data, ...products])
+        setProducts([{ ...data, id: data._id }, ...products])
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
         setShowProductForm(false)
       }
@@ -97,12 +95,17 @@ export default function AdminDashboard() {
     if (!editingProduct) return
 
     try {
-      const { data, error } = await supabase.from("products").update(newProduct).eq("id", editingProduct.id).select()
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProduct),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to update product")
 
+      const data = await res.json()
       if (data) {
-        setProducts(products.map((p) => (p.id === editingProduct.id ? data[0] : p)))
+        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id } : p)))
         setEditingProduct(null)
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
         setShowProductForm(false)
@@ -113,13 +116,15 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleDeleteProduct = async (id: string) => {
     if (!confirm("Tem certeza que deseja deletar este produto?")) return
 
     try {
-      const { error } = await supabase.from("products").delete().eq("id", id)
+      const res = await fetch(`/api/products/${id}`, {
+        method: "DELETE",
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to delete product")
 
       setProducts(products.filter((p) => p.id !== id))
     } catch (error) {
@@ -131,12 +136,17 @@ export default function AdminDashboard() {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const { data, error } = await supabase.from("categories").insert([newCategory]).select()
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCategory),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to add category")
 
+      const data = await res.json()
       if (data) {
-        setCategories([...categories, ...data])
+        setCategories([...categories, { ...data, id: data._id }])
         setNewCategory({ name: "", display_name: "", icon: "" })
         setShowCategoryForm(false)
       }
@@ -151,16 +161,17 @@ export default function AdminDashboard() {
     if (!editingCategory) return
 
     try {
-      const { data, error } = await supabase
-        .from("categories")
-        .update(newCategory)
-        .eq("id", editingCategory.id)
-        .select()
+      const res = await fetch(`/api/categories/${editingCategory.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCategory),
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to update category")
 
+      const data = await res.json()
       if (data) {
-        setCategories(categories.map((c) => (c.id === editingCategory.id ? data[0] : c)))
+        setCategories(categories.map((c) => (c.id === editingCategory.id ? { ...data, id: data._id } : c)))
         setEditingCategory(null)
         setNewCategory({ name: "", display_name: "", icon: "" })
         setShowCategoryForm(false)
@@ -171,18 +182,85 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleDeleteCategory = async (id: number) => {
+  const handleDeleteCategory = async (id: string) => {
     if (!confirm("Tem certeza que deseja deletar esta categoria?")) return
 
     try {
-      const { error } = await supabase.from("categories").delete().eq("id", id)
+      const res = await fetch(`/api/categories/${id}`, {
+        method: "DELETE",
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to delete category")
 
       setCategories(categories.filter((c) => c.id !== id))
     } catch (error) {
       console.error("Error deleting category:", error)
       alert("Erro ao deletar categoria")
+    }
+  }
+
+  const handleDeleteMessage = async (id: string) => {
+    if (!confirm("Tem certeza que deseja deletar esta mensagem? Esta ação não pode ser desfeita.")) return
+
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "DELETE",
+      })
+
+      if (!res.ok) throw new Error("Failed to delete message")
+
+      setMessages(messages.filter((m) => m.id !== id))
+      alert("Mensagem deletada com sucesso.")
+    } catch (error) {
+      console.error("Error deleting message:", error)
+      alert("Erro ao deletar mensagem")
+    }
+  }
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTaskText.trim()) return
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newTaskText }),
+      })
+      if (!res.ok) throw new Error("Failed to add task")
+      const addedTask = await res.json()
+      setTasks([{ ...addedTask, id: addedTask._id }, ...tasks])
+      setNewTaskText("")
+    } catch (error) {
+      console.error("Error adding task:", error)
+      alert("Erro ao adicionar tarefa")
+    }
+  }
+
+  const handleToggleTask = async (task: Task) => {
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !task.completed }),
+      })
+      if (!res.ok) throw new Error("Failed to update task")
+      const updatedTask = await res.json()
+      setTasks(tasks.map((t) => (t.id === task.id ? { ...updatedTask, id: updatedTask._id } : t)))
+    } catch (error) {
+      console.error("Error updating task:", error)
+      alert("Erro ao atualizar tarefa")
+    }
+  }
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete task")
+      setTasks(tasks.filter((t) => t.id !== id))
+    } catch (error) {
+      console.error("Error deleting task:", error)
+      alert("Erro ao deletar tarefa")
     }
   }
 
@@ -211,8 +289,8 @@ export default function AdminDashboard() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login")
+    await signOut({ redirect: false })
+    router.push("/login")
   }
 
   if (isLoading) {
@@ -233,7 +311,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914 - ADMIN</h1>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-400">quebrada1914@outlook.com</span>
+              <span className="text-sm text-gray-400">{session?.user?.email}</span>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
@@ -252,6 +330,8 @@ export default function AdminDashboard() {
               { id: "dashboard", label: "DASHBOARD", icon: "📊" },
               { id: "products", label: "PRODUTOS", icon: "👕" },
               { id: "categories", label: "CATEGORIAS", icon: "📁" },
+              { id: "messages", label: "MENSAGENS", icon: "💬" },
+              { id: "tasks", label: "TAREFAS", icon: "✅" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -271,7 +351,7 @@ export default function AdminDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === "dashboard" && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-red-500">{products.length}</div>
                 <div className="text-gray-400 font-bold tracking-wide text-sm">PRODUTOS</div>
@@ -283,6 +363,10 @@ export default function AdminDashboard() {
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-blue-500">{products.filter((p) => p.featured).length}</div>
                 <div className="text-gray-400 font-bold tracking-wide text-sm">DESTAQUES</div>
+              </div>
+              <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
+                <div className="text-3xl font-bold text-yellow-500">{messages.length}</div>
+                <div className="text-gray-400 font-bold tracking-wide text-sm">MENSAGENS</div>
               </div>
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-purple-500">
@@ -348,8 +432,8 @@ export default function AdminDashboard() {
               <div className="mt-8 p-6 bg-green-600/10 border border-green-600/30 rounded-lg">
                 <h3 className="text-xl font-bold mb-2 text-green-400">CMS COMPLETO FUNCIONANDO</h3>
                 <p className="text-gray-300">
-                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos e
-                  categorias. Todas as alterações são salvas no Supabase e refletidas na loja automaticamente.
+                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos,
+                  categorias e visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
                 </p>
               </div>
             </div>
@@ -474,6 +558,45 @@ export default function AdminDashboard() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {activeTab === "messages" && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold tracking-wide">MENSAGENS DE CONTATO</h2>
+            {messages.length === 0 ? (
+              <div className="bg-gray-900/50 rounded-lg p-8 text-center border border-gray-800">
+                <div className="text-5xl mb-4">📭</div>
+                <p className="text-gray-400">Nenhuma mensagem recebida ainda.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {messages.map((message) => (
+                  <div key={message.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-4 mb-2">
+                          <h3 className="text-xl font-bold">{message.name}</h3>
+                          <a href={`mailto:${message.email}`} className="text-sm text-red-400 hover:underline">
+                            {message.email}
+                          </a>
+                        </div>
+                        <p className="text-gray-300 mb-4 whitespace-pre-wrap">{message.message}</p>
+                        <p className="text-xs text-gray-500">
+                          Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteMessage(message.id)}
+                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
+                      >
+                        DELETAR
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

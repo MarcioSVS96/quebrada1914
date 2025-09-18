@@ -1,27 +1,21 @@
-import type React from "react"
-import { Oswald } from "next/font/google"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import NextAuthSessionProvider from "@/components/session-provider"
 import "./globals.css"
 
-const oswald = Oswald({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-oswald",
-})
+const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Quebrada 1914 - Vista o que Representa",
   description: "Roupas com atitude, direto da periferia pro seu guarda-roupa",
-    generator: 'v0.app'
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${oswald.variable} antialiased`}>
-      <body className="font-oswald">{children}</body>
+    <html lang="pt-BR">
+      <body className={inter.className}>
+        <NextAuthSessionProvider>{children}</NextAuthSessionProvider>
+      </body>
     </html>
   )
 }

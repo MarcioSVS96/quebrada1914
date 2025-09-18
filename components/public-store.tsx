@@ -1,37 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
-import Header from "./header"
-import Footer from "./footer"
-import ProductsSection from "./products-section"
-import AboutSection from "./about-section"
-import ContactSection from "./contact-section"
-import CartModal from "./cart-modal"
-import NotificationContainer from "./notification-container"
-
-interface Product {
-  id: number
-  name: string
-  price: number
-  category: string
-  description: string
-  image: string | null
-  stock: number
-  featured: boolean
-  created_at: string
-}
-
-interface Category {
-  id: number
-  name: string
-  display_name: string
-  icon: string
-}
-
-interface CartItem extends Product {
-  quantity: number
-}
+import { v4 as uuidv4 } from "uuid"
+import type { Product, Category, CartItem } from "@/types"
+import Header from "./header";
+import Footer from "./footer";
+import ProductsSection from "./products-section";
+import AboutSection from "./about-section";
+import ContactSection from "./contact-section";
+import CartModal from "./cart-modal";
+import NotificationContainer from "./notification-container";
 
 export default function PublicStore() {
   const [currentPage, setCurrentPage] = useState("home")
@@ -41,26 +19,41 @@ export default function PublicStore() {
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  const supabase = createClient()
+  // Função para obter/criar um ID único para o carrinho do usuário anônimo
+  const getCartId = (): string => {
+    let cartId = localStorage.getItem("cartId")
+    if (!cartId) {
+      cartId = uuidv4()
+      localStorage.setItem("cartId", cartId)
+    }
+    return cartId
+  }
 
   useEffect(() => {
     loadData()
-    loadCartFromStorage()
   }, [])
 
   const loadData = async () => {
     try {
-      // Load categories
-      const { data: categoriesData } = await supabase.from("categories").select("*").order("created_at")
+      const categoriesRes = await fetch("/api/categories")
+      const productsRes = await fetch("/api/products")
 
-      // Load products
-      const { data: productsData } = await supabase
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false })
+      const categoriesData = await categoriesRes.json()
+      const productsData = await productsRes.json()
 
-      if (categoriesData) setCategories(categoriesData)
-      if (productsData) setProducts(productsData)
+      // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
+      const mapId = (item: any) => ({ ...item, id: item._id })
+
+      if (categoriesData) setCategories(categoriesData.map(mapId))
+      if (productsData) setProducts(productsData.map(mapId))
+
+      // Carrega o carrinho do Redis via API
+      const cartId = getCartId()
+      const cartRes = await fetch(`/api/cart?cartId=${cartId}`)
+      const cartData = await cartRes.json()
+      if (cartData) {
+        setCart(cartData)
+      }
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -68,26 +61,20 @@ export default function PublicStore() {
     }
   }
 
-  const loadCartFromStorage = () => {
+  const saveCartToDb = async (cartData: CartItem[]) => {
     try {
-      const savedCart = localStorage.getItem("quebrada_cart")
-      if (savedCart) {
-        setCart(JSON.parse(savedCart))
-      }
-    } catch (error) {
-      console.error("Error loading cart:", error)
-    }
-  }
-
-  const saveCartToStorage = (cartData: CartItem[]) => {
-    try {
-      localStorage.setItem("quebrada_cart", JSON.stringify(cartData))
+      const cartId = getCartId()
+      await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cartId, cart: cartData }),
+      })
     } catch (error) {
       console.error("Error saving cart:", error)
     }
   }
 
-  const addToCart = (productId: number) => {
+  const addToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId)
     if (!product || product.stock === 0) return
 
@@ -102,16 +89,16 @@ export default function PublicStore() {
     }
 
     setCart(newCart)
-    saveCartToStorage(newCart)
+    saveCartToDb(newCart)
   }
 
-  const removeFromCart = (productId: number) => {
+  const removeFromCart = (productId: string) => {
     const newCart = cart.filter((item) => item.id !== productId)
     setCart(newCart)
-    saveCartToStorage(newCart)
+    saveCartToDb(newCart)
   }
 
-  const updateQuantity = (productId: number, change: number) => {
+  const updateQuantity = (productId: string, change: number) => {
     const item = cart.find((item) => item.id === productId)
     const product = products.find((p) => p.id === productId)
 
@@ -128,13 +115,13 @@ export default function PublicStore() {
         cartItem.id === productId ? { ...cartItem, quantity: newQuantity } : cartItem,
       )
       setCart(newCart)
-      saveCartToStorage(newCart)
+      saveCartToDb(newCart)
     }
   }
 
   const clearCart = () => {
     setCart([])
-    saveCartToStorage([])
+    saveCartToDb([])
   }
 
   const checkout = () => {
