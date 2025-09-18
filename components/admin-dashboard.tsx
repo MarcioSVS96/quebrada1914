@@ -12,7 +12,8 @@ export default function AdminDashboard() {
   const [messages, setMessages] = useState<ContactMessage[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTaskText, setNewTaskText] = useState("")
-  const [selectedDay, setSelectedDay] = useState("segunda")
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "messages" | "tasks">("dashboard")
   const [showProductForm, setShowProductForm] = useState(false)
@@ -44,9 +45,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (activeTab === "tasks") {
-      fetchTasks(selectedDay)
+      const dateString = selectedDate.toISOString().split("T")[0]
+      fetchTasks(dateString)
     }
-  }, [activeTab, selectedDay])
+  }, [activeTab, selectedDate])
 
   const loadData = async () => {
     try {
@@ -243,14 +245,15 @@ export default function AdminDashboard() {
     if (!newTaskText.trim()) return
 
     try {
+      const dateString = selectedDate.toISOString().split("T")[0]
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: newTaskText, day: selectedDay }),
+        body: JSON.stringify({ text: newTaskText, day: dateString }),
       })
       if (!res.ok) throw new Error("Failed to add task")
       setNewTaskText("")
-      fetchTasks(selectedDay) // Recarrega as tarefas do dia
+      fetchTasks(dateString) // Recarrega as tarefas do dia
     } catch (error) {
       console.error("Error adding task:", error)
       alert("Erro ao adicionar tarefa")
@@ -266,7 +269,9 @@ export default function AdminDashboard() {
       })
       if (!res.ok) throw new Error("Failed to update task")
       const updatedTask = await res.json()
-      setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: updatedTask.completed } : t)))
+      setTasks((prevTasks) =>
+        prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)),
+      )
     } catch (error) {
       console.error("Error updating task:", error)
       alert("Erro ao atualizar tarefa")
@@ -278,7 +283,8 @@ export default function AdminDashboard() {
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete task")
-      fetchTasks(selectedDay) // Recarrega as tarefas do dia
+      const dateString = selectedDate.toISOString().split("T")[0]
+      fetchTasks(dateString) // Recarrega as tarefas do dia
     } catch (error) {
       console.error("Error deleting task:", error)
       alert("Erro ao deletar tarefa")
@@ -622,31 +628,66 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === "tasks" && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <h2 className="text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
 
-            <div className="flex justify-center gap-2 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+            <div className="flex items-center justify-center gap-4 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+              <button
+                onClick={() => setWeekOffset((prev) => prev - 1)}
+                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                aria-label="Semana anterior"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              <div className="flex justify-center gap-2">
               {[
-                { key: "segunda", name: "Seg" },
-                { key: "terca", name: "Ter" },
-                { key: "quarta", name: "Qua" },
-                { key: "quinta", name: "Qui" },
-                { key: "sexta", name: "Sex" },
-                { key: "sabado", name: "Sáb" },
-                { key: "domingo", name: "Dom" },
-              ].map((day) => (
-                <button
-                  key={day.key}
-                  onClick={() => setSelectedDay(day.key)}
-                  className={`px-4 py-2 rounded-md font-bold transition-colors text-sm ${
-                    selectedDay === day.key
-                      ? "bg-red-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
-                  }`}
-                >
-                  {day.name}
-                </button>
-              ))}
+                { key: "segunda", name: "Segunda" },
+                { key: "terca", name: "Terça" },
+                { key: "quarta", name: "Quarta" },
+                { key: "quinta", name: "Quinta" },
+                { key: "sexta", name: "Sexta" },
+                { key: "sabado", name: "Sábado" },
+                { key: "domingo", name: "Domingo" },
+              ].map((day, index) => {
+                const today = new Date();
+                today.setDate(today.getDate() + weekOffset * 7);
+                const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+                const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
+                const date = new Date(today)
+                date.setDate(today.getDate() - dayIndex + index)
+
+                const isSelected = selectedDate.toDateString() === date.toDateString();
+
+                return (
+                  <button
+                    key={day.key}
+                    onClick={() => setSelectedDate(date)}
+                    className={`flex flex-col items-center justify-center w-24 h-24 rounded-lg font-bold transition-colors text-sm ${
+                      isSelected
+                        ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-xs font-medium uppercase">{day.name}</span>
+                    <span className="text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
+                    <span className="text-xs font-light text-gray-500 capitalize">{date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+              <button
+                onClick={() => setWeekOffset((prev) => prev + 1)}
+                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                aria-label="Próxima semana"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
 
             <form onSubmit={handleAddTask} className="flex gap-4 mb-6 bg-gray-900/50 p-6 rounded-lg border border-gray-800">
