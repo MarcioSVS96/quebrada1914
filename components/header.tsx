@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useSession, signOut } from "next-auth/react"
+import Link from "next/link"
 
 interface CartItem {
   id: number
@@ -17,6 +19,7 @@ interface HeaderProps {
 
 export default function Header({ cart, onCartToggle, onPageChange, currentPage }: HeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { data: session, status } = useSession()
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -75,10 +78,32 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                 🛒 CARRINHO ({totalItems})<span className="text-xs block">R$ {totalPrice.toFixed(2)}</span>
               </button>
 
-              {/* Mobile Menu Button */}
-              <button onClick={toggleMobileMenu} className="md:hidden text-white text-2xl">
-                ☰
-              </button>
+              {/* Auth Buttons */}
+              {status === "loading" ? (
+                <div className="text-sm text-gray-500">...</div>
+              ) : session ? (
+                <div className="hidden md:flex items-center space-x-4">
+                  <span className="text-sm text-gray-300">{session.user?.name || session.user?.email}</span>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="bg-gray-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-600 transition text-xs"
+                  >
+                    SAIR
+                  </button>
+                </div>
+              ) : (
+                <div className="hidden md:flex items-center space-x-2">
+                  <Link href="/login">
+                    <button className="font-bold hover:text-red-500 transition px-4 py-2">LOGIN</button>
+                  </Link>
+                  <Link href="/register">
+                    <button className="bg-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition">
+                      CRIAR CONTA
+                    </button>
+                  </Link>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -108,6 +133,32 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
             >
               CONTATO
             </button>
+            <div className="border-t border-gray-700 pt-6 mt-6">
+              {session ? (
+                <div className="space-y-4">
+                  <span className="block text-gray-400 text-sm">{session.user?.name}</span>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="w-full bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
+                  >
+                    SAIR
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Link href="/login">
+                    <button className="w-full text-white hover:text-red-500 font-bold text-xl tracking-wide transition">
+                      LOGIN
+                    </button>
+                  </Link>
+                  <Link href="/register">
+                    <button className="w-full bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition">
+                      CRIAR CONTA
+                    </button>
+                  </Link>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </div>

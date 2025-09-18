@@ -1,34 +1,13 @@
 "use client"
 
-interface Product {
-  id: number
-  name: string
-  price: number
-  category: string
-  description: string
-  image: string | null
-  stock: number
-  featured: boolean
-  created_at: string
-}
-
-interface CartItem extends Product {
-  quantity: number
-}
-
-interface Category {
-  id: number
-  name: string
-  display_name: string
-  icon: string
-}
+import type { CartItem, Category } from "@/types"
 
 interface CartModalProps {
   isOpen: boolean
   onClose: () => void
   cart: CartItem[]
-  onUpdateQuantity: (productId: number, change: number) => void
-  onRemoveItem: (productId: number) => void
+  onUpdateQuantity: (productId: string, change: number) => void
+  onRemoveItem: (productId: string) => void
   onClearCart: () => void
   onCheckout: () => void
   categories: Category[]

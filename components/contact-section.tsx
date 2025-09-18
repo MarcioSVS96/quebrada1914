@@ -11,11 +11,27 @@ export default function ContactSection() {
     message: "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Here you could integrate with a form service
-    alert("Mensagem enviada! Vamos responder em breve, mano!")
-    setFormData({ name: "", email: "", message: "" })
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      if (!res.ok) {
+        throw new Error("Falha ao enviar a mensagem.")
+      }
+
+      alert("Mensagem enviada! Vamos responder em breve, mano!")
+      setFormData({ name: "", email: "", message: "" })
+    } catch (error) {
+      console.error(error)
+      alert("Ocorreu um erro. Tente novamente mais tarde.")
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

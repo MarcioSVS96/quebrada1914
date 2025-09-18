@@ -1,10 +1,26 @@
-import { updateSession } from "@/lib/supabase/middleware"
-import type { NextRequest } from "next/server"
+import { withAuth } from "next-auth/middleware"
+import { NextResponse } from "next/server"
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request)
-}
+export default withAuth(
+  // `withAuth` estende o objeto `req` com o token do usuário.
+  function middleware(req) {
+    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
+    const isAdminUser = req.nextauth.token?.email === process.env.ADMIN_EMAIL
+
+    // Se a rota é de admin e o usuário não é o admin, redireciona para a página de não autorizado.
+    if (isAdminRoute && !isAdminUser) {
+      return NextResponse.rewrite(new URL("/auth/unauthorized", req.url))
+    }
+  },
+  {
+    callbacks: {
+      // O middleware só será invocado se o token existir (usuário logado).
+      authorized: ({ token }) => !!token,
+    },
+  }
+)
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
-}
+  // Protege todas as rotas de administrador.
+  matcher: ["/admin/:path*"],
+};
