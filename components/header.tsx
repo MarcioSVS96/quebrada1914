@@ -3,12 +3,8 @@
 import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
+import type { CartItem } from "@/types"
 
-interface CartItem {
-  id: number
-  quantity: number
-  price: number
-}
 
 interface HeaderProps {
   cart: CartItem[]
@@ -20,6 +16,8 @@ interface HeaderProps {
 export default function Header({ cart, onCartToggle, onPageChange, currentPage }: HeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { data: session, status } = useSession()
+
+  console.log(cart);
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)

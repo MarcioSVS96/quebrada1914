@@ -51,8 +51,10 @@ export default function PublicStore() {
       const cartId = getCartId()
       const cartRes = await fetch(`/api/cart?cartId=${cartId}`)
       const cartData = await cartRes.json()
-      if (cartData) {
-        setCart(cartData)
+      // A API pode retornar um objeto { cart: [...] } ou um array vazio.
+      // Garantimos que estamos definindo o estado com um array.
+      if (cartData && Array.isArray(cartData.cart)) {
+        setCart(cartData.cart)
       }
     } catch (error) {
       console.error("Error loading data:", error)
