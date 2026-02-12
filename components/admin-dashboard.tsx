@@ -3,11 +3,13 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { Product, Category, ContactMessage, Task } from "@/types"
+
 type User = {
   id: string
   name: string
   email: string
 }
+
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 
@@ -44,6 +46,11 @@ export default function AdminDashboard() {
     stock: 0,
     featured: false,
   })
+
+  // ✅ estados para upload automático da imagem
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("")
 
   const [newCategory, setNewCategory] = useState({
     name: "",
@@ -89,7 +96,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
-      const mapId = (item: any) => ({ ...item, id: item._id.toString() })
+      const mapId = (item: any) => ({ ...item, id: item._id?.toString?.() ?? item._id ?? item.id })
 
       const [categoriesRes, productsRes, messagesRes, usersRes] = await Promise.all([
         fetch("/api/categories"),
@@ -105,10 +112,20 @@ export default function AdminDashboard() {
         usersRes.json(),
       ])
 
-      if (categoriesData) setCategories(categoriesData.map(mapId))
-      if (productsData) setProducts(productsData.map(mapId))
-      if (messagesData) setMessages(messagesData.map(mapId))
-      if (usersData) setUsers(usersData.map(mapId))
+      if (Array.isArray(categoriesData)) setCategories(categoriesData.map(mapId))
+      else setCategories([])
+
+      if (Array.isArray(productsData)) setProducts(productsData.map(mapId))
+      else setProducts([])
+
+      if (Array.isArray(messagesData)) setMessages(messagesData.map(mapId))
+      else {
+        console.error("Resposta inesperada de /api/messages:", messagesData)
+        setMessages([])
+      }
+
+      if (Array.isArray(usersData)) setUsers(usersData.map(mapId))
+      else setUsers([])
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -121,11 +138,65 @@ export default function AdminDashboard() {
       const res = await fetch(`/api/tasks?day=${day}`)
       if (!res.ok) throw new Error("Failed to fetch tasks")
       const tasksData = await res.json()
-      const mapId = (item: any) => ({ ...item, id: item._id })
+      const mapId = (item: any) => ({ ...item, id: item._id ?? item.id })
       setTasks(tasksData.map(mapId))
     } catch (error) {
       console.error("Error loading tasks:", error)
       setTasks([]) // Limpa as tarefas em caso de erro
+    }
+  }
+
+  // ✅ Upload automático da imagem no Supabase Storage (sem precisar clicar em "Enviar")
+  const uploadProductImage = async (file: File) => {
+    setImageError(null)
+    setImageUploading(true)
+
+    try {
+      const maxMb = 6
+      const allowed = ["image/png", "image/jpeg", "image/webp"]
+
+      if (!allowed.includes(file.type)) {
+        throw new Error("Formato inválido. Use PNG, JPG ou WEBP.")
+      }
+      if (file.size > maxMb * 1024 * 1024) {
+        throw new Error(`Imagem muito grande. Máximo ${maxMb}MB.`)
+      }
+
+      const { data: userData, error: userErr } = await supabase.auth.getUser()
+      if (userErr) throw userErr
+      if (!userData.user) throw new Error("Você precisa estar logado para enviar imagem.")
+
+      const ext = file.name.split(".").pop() || "jpg"
+      const safeName = file.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[^a-zA-Z0-9-_]/g, "-")
+        .toLowerCase()
+
+      const path = `products/${userData.user.id}/${Date.now()}-${safeName}.${ext}`
+
+      // ⚠️ Se o seu bucket tiver outro nome, troque aqui:
+      const bucket = "product-images"
+
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+        cacheControl: "3600",
+      })
+      if (upErr) throw upErr
+
+      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path)
+      const publicUrl = pub?.publicUrl || ""
+      if (!publicUrl) throw new Error("Não foi possível obter a URL pública da imagem.")
+
+      setNewProduct((prev) => ({ ...prev, image: publicUrl }))
+      setImagePreviewUrl(publicUrl)
+    } catch (err: any) {
+      console.error("Upload image error:", err)
+      setImageError(err?.message || "Erro ao enviar imagem.")
+      setNewProduct((prev) => ({ ...prev, image: "" }))
+      setImagePreviewUrl("")
+    } finally {
+      setImageUploading(false)
     }
   }
 
@@ -144,6 +215,8 @@ export default function AdminDashboard() {
       if (data) {
         setProducts([{ ...data, id: data._id }, ...products])
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+        setImagePreviewUrl("")
+        setImageError(null)
         setShowProductForm(false)
       }
     } catch (error) {
@@ -167,9 +240,11 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id.toString() } : p)))
+        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id?.toString?.() ?? data._id } : p)))
         setEditingProduct(null)
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+        setImagePreviewUrl("")
+        setImageError(null)
         setShowProductForm(false)
       }
     } catch (error) {
@@ -307,7 +382,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ completed: !task.completed }),
       })
       if (!res.ok) throw new Error("Failed to update task")
-      const updatedTask = await res.json()
+      await res.json()
       setTasks((prevTasks) => prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)))
     } catch (error) {
       console.error("Error updating task:", error)
@@ -344,7 +419,7 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setUsers([{ ...data, id: data._id.toString() }, ...users])
+        setUsers([{ ...data, id: data._id?.toString?.() ?? data._id }, ...users])
         setNewUser({ name: "", email: "", password: "" })
         setShowUserForm(false)
       }
@@ -372,7 +447,7 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setUsers(users.map((u) => (u.id === editingUser.id ? { ...data, id: data._id.toString() } : u)))
+        setUsers(users.map((u) => (u.id === editingUser.id ? { ...data, id: data._id?.toString?.() ?? data._id } : u)))
         setEditingUser(null)
         setNewUser({ name: "", email: "", password: "" })
         setShowUserForm(false)
@@ -405,6 +480,8 @@ export default function AdminDashboard() {
       stock: product.stock,
       featured: product.featured,
     })
+    setImagePreviewUrl(product.image || "")
+    setImageError(null)
     setShowProductForm(true)
   }
 
@@ -526,7 +603,8 @@ export default function AdminDashboard() {
             <div className="bg-gray-900/50 rounded-lg p-8 border border-gray-800">
               <h2 className="text-3xl font-bold mb-6 tracking-wide">PAINEL ADMINISTRATIVO</h2>
               <p className="text-gray-300 mb-6">
-                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e acompanhar as estatísticas da loja.
+                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e acompanhar
+                as estatísticas da loja.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -573,7 +651,8 @@ export default function AdminDashboard() {
               <div className="mt-8 p-6 bg-green-600/10 border border-green-600/30 rounded-lg">
                 <h3 className="text-xl font-bold mb-2 text-green-400">CMS COMPLETO FUNCIONANDO</h3>
                 <p className="text-gray-300">
-                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos, categorias e visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
+                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos, categorias e
+                  visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
                 </p>
               </div>
             </div>
@@ -588,6 +667,8 @@ export default function AdminDashboard() {
                 onClick={() => {
                   setEditingProduct(null)
                   setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+                  setImagePreviewUrl("")
+                  setImageError(null)
                   setShowProductForm(true)
                 }}
                 className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
@@ -766,7 +847,9 @@ export default function AdminDashboard() {
                           </a>
                         </div>
                         <p className="text-gray-300 mb-4 whitespace-pre-wrap">{message.message}</p>
-                        <p className="text-xs text-gray-500">Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}</p>
+                        <p className="text-xs text-gray-500">
+                          Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}
+                        </p>
                       </div>
                       <button
                         onClick={() => handleDeleteMessage(message.id)}
@@ -905,6 +988,7 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">PREÇO</label>
@@ -928,6 +1012,7 @@ export default function AdminDashboard() {
                   />
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm font-bold mb-2">CATEGORIA</label>
                 <select
@@ -944,6 +1029,7 @@ export default function AdminDashboard() {
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-bold mb-2">DESCRIÇÃO</label>
                 <textarea
@@ -953,16 +1039,60 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+
+              {/* ✅ Upload automático */}
               <div>
-                <label className="block text-sm font-bold mb-2">URL DA IMAGEM</label>
+                <label className="block text-sm font-bold mb-2">IMAGEM DO PRODUTO (UPLOAD)</label>
+
                 <input
-                  type="url"
-                  value={newProduct.image}
-                  onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) uploadProductImage(file)
+                  }}
                   className="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white"
-                  placeholder="https://exemplo.com/imagem.jpg"
                 />
+
+                <div className="mt-2 flex items-center gap-3">
+                  {imageUploading ? (
+                    <span className="text-sm text-yellow-400 font-bold">Enviando imagem...</span>
+                  ) : newProduct.image ? (
+                    <span className="text-sm text-green-400 font-bold">Imagem enviada ✅</span>
+                  ) : (
+                    <span className="text-sm text-gray-400">Nenhuma imagem selecionada.</span>
+                  )}
+                </div>
+
+                {imageError && (
+                  <div className="mt-2 p-3 bg-red-600/20 border border-red-600/40 rounded">
+                    <p className="text-sm text-red-300 font-bold">{imageError}</p>
+                  </div>
+                )}
+
+                {(imagePreviewUrl || newProduct.image) && (
+                  <div className="mt-4">
+                    <p className="text-xs text-gray-400 mb-2">Pré-visualização</p>
+                    <img
+                      src={imagePreviewUrl || newProduct.image}
+                      alt="Preview"
+                      className="w-full max-h-64 object-contain bg-black/40 border border-gray-700 rounded"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <label className="block text-xs font-bold mb-1 text-gray-300">URL GERADA (somente leitura)</label>
+                  <input
+                    type="text"
+                    value={newProduct.image}
+                    readOnly
+                    className="w-full p-3 bg-gray-800/60 rounded border border-gray-700 text-gray-300"
+                    placeholder="A URL vai aparecer aqui após o upload"
+                  />
+                </div>
               </div>
+
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -975,8 +1105,13 @@ export default function AdminDashboard() {
                   PRODUTO EM DESTAQUE
                 </label>
               </div>
+
               <div className="flex space-x-4 pt-4">
-                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
+                <button
+                  type="submit"
+                  disabled={imageUploading}
+                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   {editingProduct ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button
@@ -985,6 +1120,8 @@ export default function AdminDashboard() {
                     setShowProductForm(false)
                     setEditingProduct(null)
                     setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+                    setImagePreviewUrl("")
+                    setImageError(null)
                   }}
                   className="bg-gray-600 text-white px-6 py-3 rounded font-bold hover:bg-gray-700 transition"
                 >
