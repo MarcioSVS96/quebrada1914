@@ -1,31 +1,43 @@
-import { NextResponse } from 'next/server'
-import clientPromise from '@/lib/mongodb'
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET() {
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
+    // Leitura pública (respeita RLS)
+    const supabase = await createClient()
 
-    const categories = await db
-      .collection('categories')
-      .find({})
-      .sort({ created_at: 1 }) // Ordenar por data de criação
-      .toArray()
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("created_at", { ascending: true })
 
-    return NextResponse.json(categories)
+    if (error) {
+      console.error(error)
+      return NextResponse.json({ error: "Error fetching categories" }, { status: 500 })
+    }
+
+    // Compatibilidade com UI que espera _id
+    const mapped = (data ?? []).map((c) => ({ ...c, _id: c.id }))
+
+    return NextResponse.json(mapped)
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'Error fetching categories' }, { status: 500 })
+    return NextResponse.json({ error: "Error fetching categories" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+  }
+
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
     const body = await request.json()
 
-    // Garante que apenas os campos esperados sejam inseridos
     const newCategoryData = {
       name: body.name,
       display_name: body.display_name,
@@ -33,12 +45,20 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString(),
     }
 
-    const result = await db.collection('categories').insertOne(newCategoryData)
-    const insertedCategory = await db.collection('categories').findOne({ _id: result.insertedId })
+    const { data, error } = await supabaseAdmin
+      .from("categories")
+      .insert(newCategoryData)
+      .select("*")
+      .single()
 
-    return NextResponse.json(insertedCategory, { status: 201 })
+    if (error) {
+      console.error(error)
+      return NextResponse.json({ error: "Error creating category" }, { status: 500 })
+    }
+
+    return NextResponse.json({ ...data, _id: data.id }, { status: 201 })
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'Error creating category' }, { status: 500 })
+    return NextResponse.json({ error: "Error creating category" }, { status: 500 })
   }
 }

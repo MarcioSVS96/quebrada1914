@@ -1,12 +1,19 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react";
-import type { Product, Category, ContactMessage, Task, User } from "@/types";
-import { useSession, signOut } from "next-auth/react"
+import { useState, useEffect } from "react"
+import type { Product, Category, ContactMessage, Task } from "@/types"
+type User = {
+  id: string
+  name: string
+  email: string
+}
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AdminDashboard() {
+  const supabase = createClient()
+
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -16,13 +23,17 @@ export default function AdminDashboard() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "users" | "messages" | "tasks">("dashboard")
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "users" | "messages" | "tasks">(
+    "dashboard",
+  )
   const [showProductForm, setShowProductForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const { data: session } = useSession()
   const router = useRouter()
+
+  // ✅ Substitui NextAuth session por Supabase user
+  const [adminEmail, setAdminEmail] = useState<string | null>(null)
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -47,6 +58,22 @@ export default function AdminDashboard() {
   })
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [showUserForm, setShowUserForm] = useState(false)
+
+  // ✅ Pega usuário logado (Supabase) e escuta mudanças
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setAdminEmail(data.user?.email ?? null)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAdminEmail(session?.user?.email ?? null)
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -281,9 +308,7 @@ export default function AdminDashboard() {
       })
       if (!res.ok) throw new Error("Failed to update task")
       const updatedTask = await res.json()
-      setTasks((prevTasks) =>
-        prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)),
-      )
+      setTasks((prevTasks) => prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)))
     } catch (error) {
       console.error("Error updating task:", error)
       alert("Erro ao atualizar tarefa")
@@ -403,9 +428,10 @@ export default function AdminDashboard() {
     setShowUserForm(true)
   }
 
-
+  // ✅ Substitui signOut do NextAuth
   const handleSignOut = async () => {
-    await signOut() // O NextAuth irá redirecionar para a página inicial ("/") conforme configurado.
+    await supabase.auth.signOut()
+    window.location.href = "/"
   }
 
   if (isLoading) {
@@ -426,7 +452,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914 - ADMIN</h1>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-400">{session?.user?.email}</span>
+              <span className="text-sm text-gray-400">{adminEmail}</span>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
@@ -491,9 +517,7 @@ export default function AdminDashboard() {
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-purple-500">
                   R${" "}
-                  {products.length > 0
-                    ? (products.reduce((sum, p) => sum + p.price, 0) / products.length).toFixed(2)
-                    : "0"}
+                  {products.length > 0 ? (products.reduce((sum, p) => sum + p.price, 0) / products.length).toFixed(2) : "0"}
                 </div>
                 <div className="text-gray-400 font-bold tracking-wide text-sm">PREÇO MÉDIO</div>
               </div>
@@ -502,8 +526,7 @@ export default function AdminDashboard() {
             <div className="bg-gray-900/50 rounded-lg p-8 border border-gray-800">
               <h2 className="text-3xl font-bold mb-6 tracking-wide">PAINEL ADMINISTRATIVO</h2>
               <p className="text-gray-300 mb-6">
-                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e
-                acompanhar as estatísticas da loja.
+                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e acompanhar as estatísticas da loja.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -519,9 +542,7 @@ export default function AdminDashboard() {
                               R$ {product.price.toFixed(2)} - {product.category}
                             </p>
                           </div>
-                          {product.featured && (
-                            <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>
-                          )}
+                          {product.featured && <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>}
                         </div>
                       </div>
                     ))}
@@ -552,8 +573,7 @@ export default function AdminDashboard() {
               <div className="mt-8 p-6 bg-green-600/10 border border-green-600/30 rounded-lg">
                 <h3 className="text-xl font-bold mb-2 text-green-400">CMS COMPLETO FUNCIONANDO</h3>
                 <p className="text-gray-300">
-                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos,
-                  categorias e visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
+                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos, categorias e visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
                 </p>
               </div>
             </div>
@@ -567,15 +587,7 @@ export default function AdminDashboard() {
               <button
                 onClick={() => {
                   setEditingProduct(null)
-                  setNewProduct({
-                    name: "",
-                    price: 0,
-                    category: "",
-                    description: "",
-                    image: "",
-                    stock: 0,
-                    featured: false,
-                  })
+                  setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
                   setShowProductForm(true)
                 }}
                 className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
@@ -591,9 +603,7 @@ export default function AdminDashboard() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-4 mb-2">
                         <h3 className="text-xl font-bold">{product.name}</h3>
-                        {product.featured && (
-                          <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>
-                        )}
+                        {product.featured && <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>}
                       </div>
                       <p className="text-gray-400 mb-2">{product.description}</p>
                       <div className="flex items-center space-x-6 text-sm">
@@ -756,9 +766,7 @@ export default function AdminDashboard() {
                           </a>
                         </div>
                         <p className="text-gray-300 mb-4 whitespace-pre-wrap">{message.message}</p>
-                        <p className="text-xs text-gray-500">
-                          Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}
-                        </p>
+                        <p className="text-xs text-gray-500">Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}</p>
                       </div>
                       <button
                         onClick={() => handleDeleteMessage(message.id)}
@@ -790,41 +798,43 @@ export default function AdminDashboard() {
               </button>
 
               <div className="flex justify-center gap-2">
-              {[
-                { key: "segunda", name: "Segunda" },
-                { key: "terca", name: "Terça" },
-                { key: "quarta", name: "Quarta" },
-                { key: "quinta", name: "Quinta" },
-                { key: "sexta", name: "Sexta" },
-                { key: "sabado", name: "Sábado" },
-                { key: "domingo", name: "Domingo" },
-              ].map((day, index) => {
-                const today = new Date();
-                today.setDate(today.getDate() + weekOffset * 7);
-                const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
-                const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
-                const date = new Date(today)
-                date.setDate(today.getDate() - dayIndex + index)
+                {[
+                  { key: "segunda", name: "Segunda" },
+                  { key: "terca", name: "Terça" },
+                  { key: "quarta", name: "Quarta" },
+                  { key: "quinta", name: "Quinta" },
+                  { key: "sexta", name: "Sexta" },
+                  { key: "sabado", name: "Sábado" },
+                  { key: "domingo", name: "Domingo" },
+                ].map((day, index) => {
+                  const today = new Date()
+                  today.setDate(today.getDate() + weekOffset * 7)
+                  const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+                  const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
+                  const date = new Date(today)
+                  date.setDate(today.getDate() - dayIndex + index)
 
-                const isSelected = selectedDate.toDateString() === date.toDateString();
+                  const isSelected = selectedDate.toDateString() === date.toDateString()
 
-                return (
-                  <button
-                    key={day.key}
-                    onClick={() => setSelectedDate(date)}
-                    className={`flex flex-col items-center justify-center w-24 h-24 rounded-lg font-bold transition-colors text-sm ${
-                      isSelected
-                        ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                        : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
-                    }`}
-                  >
-                    <span className="text-xs font-medium uppercase">{day.name}</span>
-                    <span className="text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
-                    <span className="text-xs font-light text-gray-500 capitalize">{date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}</span>
-                  </button>
-                )
-              })}
-            </div>
+                  return (
+                    <button
+                      key={day.key}
+                      onClick={() => setSelectedDate(date)}
+                      className={`flex flex-col items-center justify-center w-24 h-24 rounded-lg font-bold transition-colors text-sm ${
+                        isSelected
+                          ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                          : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
+                      }`}
+                    >
+                      <span className="text-xs font-medium uppercase">{day.name}</span>
+                      <span className="text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
+                      <span className="text-xs font-light text-gray-500 capitalize">
+                        {date.toLocaleString("pt-BR", { month: "short" }).replace(".", "")}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
 
               <button
                 onClick={() => setWeekOffset((prev) => prev + 1)}
@@ -852,31 +862,27 @@ export default function AdminDashboard() {
 
             <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
               <ul className="space-y-3">
-                {tasks.sort((a, b) => Number(a.completed) - Number(b.completed)).map((task) => (
-                  <li key={task.id} className="flex items-center justify-between bg-black/50 p-4 rounded-lg border border-gray-700">
-                    <div className="flex items-center gap-4 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => handleToggleTask(task)}
-                        className="h-6 w-6 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
-                      />
-                      <span
-                        className={`text-lg ${
-                          task.completed ? "line-through text-gray-500" : "text-white"
-                        }`}
+                {tasks
+                  .sort((a, b) => Number(a.completed) - Number(b.completed))
+                  .map((task) => (
+                    <li key={task.id} className="flex items-center justify-between bg-black/50 p-4 rounded-lg border border-gray-700">
+                      <div className="flex items-center gap-4 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => handleToggleTask(task)}
+                          className="h-6 w-6 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
+                        />
+                        <span className={`text-lg ${task.completed ? "line-through text-gray-500" : "text-white"}`}>{task.text}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteTask(task.id)}
+                        className="bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition text-xs"
                       >
-                        {task.text}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
-                      className="bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition text-xs"
-                    >
-                      DELETAR
-                    </button>
-                  </li>
-                ))}
+                        DELETAR
+                      </button>
+                    </li>
+                  ))}
               </ul>
               {tasks.length === 0 && <p className="text-gray-400 text-center py-4">Nenhuma tarefa encontrada.</p>}
             </div>
@@ -970,10 +976,7 @@ export default function AdminDashboard() {
                 </label>
               </div>
               <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
-                >
+                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
                   {editingProduct ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button
@@ -981,15 +984,7 @@ export default function AdminDashboard() {
                   onClick={() => {
                     setShowProductForm(false)
                     setEditingProduct(null)
-                    setNewProduct({
-                      name: "",
-                      price: 0,
-                      category: "",
-                      description: "",
-                      image: "",
-                      stock: 0,
-                      featured: false,
-                    })
+                    setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
                   }}
                   className="bg-gray-600 text-white px-6 py-3 rounded font-bold hover:bg-gray-700 transition"
                 >
@@ -1040,10 +1035,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
-                >
+                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
                   {editingCategory ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button
@@ -1100,10 +1092,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
-                >
+                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
                   {editingUser ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button

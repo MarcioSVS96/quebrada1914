@@ -31,8 +31,10 @@ export interface ContactMessage {
 
 export interface Task {
   id: string
-  userId: string
+  user_id: string | null
   text: string
+  day: string
   completed: boolean
-  createdAt: string
+  created_at: string
 }
+

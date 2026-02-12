@@ -1,43 +1,46 @@
-import { NextResponse } from 'next/server'
-import clientPromise from '@/lib/mongodb'
-import bcrypt from 'bcryptjs'
+import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
     const { name, email, password } = await request.json()
 
     if (!name || !email || !password) {
-      return NextResponse.json({ error: 'Nome, email e senha são obrigatórios' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Nome, email e senha são obrigatórios" },
+        { status: 400 }
+      )
     }
 
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
-    const usersCollection = db.collection('users')
+    const supabase = await createClient()
 
-    // Verifica se o usuário já existe
-    const existingUser = await usersCollection.findOne({ email })
-    if (existingUser) {
-      return NextResponse.json({ error: 'Este email já está em uso' }, { status: 409 })
-    }
-
-    // Criptografa a senha
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    const newUser = {
-      name,
+    // cria usuário no Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
       email,
-      password: hashedPassword,
-      emailVerified: null, // NextAuth usa isso
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      password,
+    })
+
+    if (error) {
+      // exemplo: "User already registered"
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const result = await usersCollection.insertOne(newUser)
+    // se criou usuário, salva o nome no profiles
+    const userId = data.user?.id
+    if (userId) {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({ id: userId, name })
 
-    return NextResponse.json({ message: 'Usuário criado com sucesso', userId: result.insertedId }, { status: 201 })
+      if (profileError) {
+        // não quebra cadastro se profile falhar
+        console.error("Erro ao salvar profile:", profileError)
+      }
+    }
+
+    return NextResponse.json({ message: "Usuário criado com sucesso" }, { status: 201 })
   } catch (e) {
-    console.error('Erro ao registrar usuário:', e)
-    return NextResponse.json({ error: 'Erro interno ao registrar usuário' }, { status: 500 })
+    console.error("Erro ao registrar usuário:", e)
+    return NextResponse.json({ error: "Erro interno ao registrar usuário" }, { status: 500 })
   }
 }
-

@@ -1,26 +1,47 @@
-import { withAuth } from "next-auth/middleware"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { createServerClient } from "@supabase/ssr"
 
-export default withAuth(
-  // `withAuth` estende o objeto `req` com o token do usuário.
-  function middleware(req) {
-    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
-    const isAdminUser = req.nextauth.token?.email === process.env.ADMIN_EMAIL
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next()
 
-    // Se a rota é de admin e o usuário não é o admin, redireciona para a página de não autorizado.
-    if (isAdminRoute && !isAdminUser) {
-      return NextResponse.rewrite(new URL("/auth/unauthorized", req.url))
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options)
+          })
+        },
+      },
     }
-  },
-  {
-    callbacks: {
-      // O middleware só será invocado se o token existir (usuário logado).
-      authorized: ({ token }) => !!token,
-    },
+  )
+
+  const { data } = await supabase.auth.getUser()
+  const user = data.user
+
+  // Se não estiver logado, manda pro login
+  if (!user) {
+    const url = req.nextUrl.clone()
+    url.pathname = "/login"
+    return NextResponse.redirect(url)
   }
-)
+
+  // Protege admin por email
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (adminEmail && user.email !== adminEmail) {
+    const url = req.nextUrl.clone()
+    url.pathname = "/auth/unauthorized"
+    return NextResponse.rewrite(url)
+  }
+
+  return res
+}
 
 export const config = {
-  // Protege todas as rotas de administrador.
   matcher: ["/admin/:path*"],
-};
+}

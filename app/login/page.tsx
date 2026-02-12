@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { signIn } from "next-auth/react"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,27 +23,27 @@ export default function UserLoginPage() {
     setError(null)
 
     try {
-      const result = await signIn("credentials", {
-        redirect: false,
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (result?.error) {
+      if (error) {
         setError("Credenciais inválidas. Verifique seu email e senha.")
         return
       }
 
-      if (result?.ok) {
-        // Redireciona para a página inicial após o login
-        router.push("/")
-      }
+      router.push("/")
+      router.refresh()
     } catch (loginError: unknown) {
       setError(loginError instanceof Error ? loginError.message : "Ocorreu um erro ao tentar fazer login.")
     } finally {
       setIsLoading(false)
     }
   }
+
 
   return (
     <div className="min-h-screen concrete-bg flex items-center justify-center p-6">

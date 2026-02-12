@@ -212,7 +212,7 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                       ESGOTADO
                     </div>
                   )}
-                  <div className="h-48 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
+                  <div className="h-64 md:h-72 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
                     {product.image ? (
                       <img
                         src={product.image || "/placeholder.svg"}
@@ -226,13 +226,16 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                       </>
                     )}
                   </div>
-                  <div className="p-6">
-                    <h4 className="font-bold text-lg mb-2 tracking-wide">{product.name}</h4>
-                    <p className="text-gray-400 text-sm mb-4 leading-relaxed line-clamp-2">{product.description}</p>
-                    <div className="flex justify-between items-center">
+                  <div className="p-5 flex flex-col items-center text-center">
+                    <div className="flex flex-col gap-1 items-center">
+                      <h4 className="font-bold text-lg tracking-wide">{product.name}</h4>
+                      <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">{product.description}</p>
+                    </div>
+                    <div className="flex justify-between items-center w-full mt-4">
                       <div>
-                        <span className="text-2xl font-bold text-red-500">R$ {product.price.toFixed(2)}</span>
-                        {product.stock < 999 && <div className="text-xs text-gray-400">Estoque: {product.stock}</div>}
+
+                      <span className="text-2xl font-bold text-red-500">R$ {product.price.toFixed(2)}</span>
+                      {product.stock < 999 && <div className="text-xs text-gray-400">Estoque: {product.stock}</div>}
                       </div>
                       <button
                         onClick={() => onAddToCart(product.id)}
@@ -241,7 +244,14 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                           product.stock === 0 ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                       >
-                        {product.stock === 0 ? "ESGOTADO" : "LANÇA NO CARRINHO"}
+                        {product.stock === 0 ? (
+                          "ESGOTADO"
+                        ) : (
+                          <>
+                            <span aria-hidden="true">🛒</span>
+                            <span className="sr-only">Adicionar ao carrinho</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
