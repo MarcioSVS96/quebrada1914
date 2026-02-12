@@ -35,7 +35,7 @@ export default function UserLoginPage() {
         return
       }
 
-      router.push("/")
+      router.push("/admin")
       router.refresh()
     } catch (loginError: unknown) {
       setError(loginError instanceof Error ? loginError.message : "Ocorreu um erro ao tentar fazer login.")
