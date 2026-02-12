@@ -100,7 +100,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
               </button>
 
               {/* Auth Buttons */}
-              {userEmail ? (
+              {/* {userEmail ? (
                 <div className="hidden md:flex items-center space-x-4">
                   <span className="text-sm text-gray-300">{userEmail}</span>
                   <button
@@ -121,7 +121,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                     </button>
                   </Link>
                 </div>
-              )}
+              )}  */}
             </div>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
               CONTATO
             </button>
 
-            <div className="border-t border-gray-700 pt-6 mt-6">
+            {/* <div className="border-t border-gray-700 pt-6 mt-6">
               {userEmail ? (
                 <div className="space-y-4">
                   <span className="block text-gray-400 text-sm">{userEmail}</span>
@@ -179,7 +179,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                   </Link>
                 </div>
               )}
-            </div>
+            </div> */}
           </nav>
         </div>
       </div>

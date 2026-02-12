@@ -72,12 +72,12 @@ export default function UserLoginPage() {
                 {isLoading ? "ENTRANDO..." : "ENTRAR"}
               </Button>
             </form>
-            <div className="mt-6 text-center">
+            {/* <div className="mt-6 text-center">
               <p className="text-sm text-gray-400">
                 Não tem uma conta?{" "}
                 <Link href="/register" className="font-bold text-red-500 hover:underline">Crie uma agora</Link>
               </p>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
       </div>
