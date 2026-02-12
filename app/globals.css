@@ -184,6 +184,18 @@
   box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
 }
 
+.btn-whatsapp {
+  background: linear-gradient(45deg, #25d366, #128c7e);
+  box-shadow: 0 4px 15px rgba(37, 211, 102, 0.35);
+}
+
+.btn-whatsapp:hover {
+  background: linear-gradient(45deg, #20bd5c, #0f7a6e);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.45);
+}
+
+
 .notification {
   animation: slideInRight 0.3s ease-out;
 }

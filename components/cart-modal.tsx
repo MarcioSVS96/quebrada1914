@@ -129,14 +129,8 @@ export default function CartModal({
                 <div className="flex justify-between items-center text-xl font-bold mb-6 p-4 bg-red-600/10 rounded-lg border border-red-600/30">
                   <span>TOTAL: R$ {totalPrice.toFixed(2)}</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button className="bg-gray-700 text-white py-3 rounded-lg font-bold tracking-wide hover:bg-gray-600 transition">
-                    💾 SALVAR PARA DEPOIS
-                  </button>
-                  <button
-                    onClick={onCheckout}
-                    className="btn-quebrada text-white py-3 rounded-lg font-bold tracking-wide transition"
-                  >
+                <div className="flex justify-center gap-4">
+                  <button onClick={onCheckout} className="btn-whatsapp text-white p-3 rounded-lg font-bold tracking-wide transition" >
                     FECHAR PELO ZAP 📱
                   </button>
                 </div>
