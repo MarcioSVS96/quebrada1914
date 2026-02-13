@@ -151,10 +151,29 @@ export default function PublicStore() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen concrete-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔥</div>
-          <p className="text-white text-xl font-bold tracking-wide">CARREGANDO A QUEBRADA...</p>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          backgroundImage: "url(/img.webp)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        {/* overlay pra dar contraste (opcional) */}
+        <div className="absolute inset-0 bg-black/60" />
+
+        {/* logo central (opcional) */}
+        <div className="relative flex flex-col items-center gap-4">
+          <img
+            src="/icon.webp"
+            alt="Quebrada 1914"
+            className="w-20 h-20 md:w-28 md:h-28"
+          />
+          <div className="w-32 h-1 bg-red-500 rounded-full animate-pulse" />
+          <p className="text-white text-lg md:text-xl font-bold tracking-wide drop-shadow">
+            CARREGANDO...
+          </p>
         </div>
       </div>
     )
