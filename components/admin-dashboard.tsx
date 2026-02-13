@@ -529,7 +529,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914 - ADMIN</h1>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-400">{adminEmail}</span>
+              <span className="hidden md:inline text-sm text-gray-400">{adminEmail}</span>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
@@ -802,15 +802,17 @@ export default function AdminDashboard() {
 
         {activeTab === "users" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold tracking-wide">GERENCIAR USUÁRIOS</h2>
+            {/* Header responsivo */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR USUÁRIOS</h2>
+
               <button
                 onClick={() => {
                   setEditingUser(null)
                   setNewUser({ name: "", email: "", password: "" })
                   setShowUserForm(true)
                 }}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
               >
                 + ADICIONAR USUÁRIO
               </button>
@@ -818,30 +820,40 @@ export default function AdminDashboard() {
 
             <div className="grid gap-4">
               {users.map((user) => (
-                <div key={user.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-4">
-                      <div className="bg-gray-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl">
+                <div key={user.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Left */}
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="bg-gray-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl shrink-0">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <h3 className="text-xl font-bold">{user.name}</h3>
-                        <p className="text-gray-400">{user.email}</p>
-                        {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
-                          <span className="text-xs font-bold text-red-500">ADMIN</span>
-                        )}
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg sm:text-xl font-bold break-words">{user.name}</h3>
+
+                          {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+                            <span className="text-xs font-bold text-red-500">ADMIN</span>
+                          )}
+                        </div>
+
+                        {/* email não estoura no mobile */}
+                        <p className="text-gray-400 break-all">{user.email}</p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       <button
                         onClick={() => startEditUser(user)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
                       >
                         EDITAR
                       </button>
+
                       <button
                         onClick={() => handleDeleteUser(user.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition disabled:bg-gray-500"
+                        className="w-full sm:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition disabled:bg-gray-500"
                         disabled={user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL}
                       >
                         DELETAR
@@ -854,9 +866,11 @@ export default function AdminDashboard() {
           </div>
         )}
 
+
         {activeTab === "messages" && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold tracking-wide">MENSAGENS DE CONTATO</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">MENSAGENS DE CONTATO</h2>
+
             {messages.length === 0 ? (
               <div className="bg-gray-900/50 rounded-lg p-8 text-center border border-gray-800">
                 <div className="text-5xl mb-4">📭</div>
@@ -865,23 +879,34 @@ export default function AdminDashboard() {
             ) : (
               <div className="grid gap-4">
                 {messages.map((message) => (
-                  <div key={message.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-4 mb-2">
-                          <h3 className="text-xl font-bold">{message.name}</h3>
-                          <a href={`mailto:${message.email}`} className="text-sm text-red-400 hover:underline">
+                  <div key={message.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        {/* Nome + email responsivo */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 mb-2">
+                          <h3 className="text-lg sm:text-xl font-bold break-words">{message.name}</h3>
+
+                          <a
+                            href={`mailto:${message.email}`}
+                            className="text-sm text-red-400 hover:underline break-all"
+                          >
                             {message.email}
                           </a>
                         </div>
-                        <p className="text-gray-300 mb-4 whitespace-pre-wrap">{message.message}</p>
+
+                        <p className="text-gray-300 mb-4 whitespace-pre-wrap break-words">
+                          {message.message}
+                        </p>
+
                         <p className="text-xs text-gray-500">
                           Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}
                         </p>
                       </div>
+
+                      {/* Botão responsivo */}
                       <button
                         onClick={() => handleDeleteMessage(message.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
+                        className="w-full lg:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
                       >
                         DELETAR
                       </button>
@@ -893,112 +918,144 @@ export default function AdminDashboard() {
           </div>
         )}
 
+
         {activeTab === "tasks" && (
           <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
 
-            <div className="flex items-center justify-center gap-4 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
-              <button
-                onClick={() => setWeekOffset((prev) => prev - 1)}
-                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
-                aria-label="Semana anterior"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
+            {/* Seletor de semana/dias - responsivo */}
+            <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setWeekOffset((prev) => prev - 1)}
+                  className="shrink-0 p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                  aria-label="Semana anterior"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
 
-              <div className="flex justify-center gap-2">
-                {[
-                  { key: "segunda", name: "Segunda" },
-                  { key: "terca", name: "Terça" },
-                  { key: "quarta", name: "Quarta" },
-                  { key: "quinta", name: "Quinta" },
-                  { key: "sexta", name: "Sexta" },
-                  { key: "sabado", name: "Sábado" },
-                  { key: "domingo", name: "Domingo" },
-                ].map((day, index) => {
-                  const today = new Date()
-                  today.setDate(today.getDate() + weekOffset * 7)
-                  const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
-                  const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
-                  const date = new Date(today)
-                  date.setDate(today.getDate() - dayIndex + index)
+                {/* Scroll horizontal no mobile */}
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex gap-2 min-w-max">
+                    {[
+                      { key: "segunda", name: "Segunda" },
+                      { key: "terca", name: "Terça" },
+                      { key: "quarta", name: "Quarta" },
+                      { key: "quinta", name: "Quinta" },
+                      { key: "sexta", name: "Sexta" },
+                      { key: "sabado", name: "Sábado" },
+                      { key: "domingo", name: "Domingo" },
+                    ].map((day, index) => {
+                      const today = new Date()
+                      today.setDate(today.getDate() + weekOffset * 7)
+                      const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+                      const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
+                      const date = new Date(today)
+                      date.setDate(today.getDate() - dayIndex + index)
 
-                  const isSelected = selectedDate.toDateString() === date.toDateString()
+                      const isSelected = selectedDate.toDateString() === date.toDateString()
 
-                  return (
-                    <button
-                      key={day.key}
-                      onClick={() => setSelectedDate(date)}
-                      className={`flex flex-col items-center justify-center w-24 h-24 rounded-lg font-bold transition-colors text-sm ${
-                        isSelected
-                          ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                          : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
-                      }`}
-                    >
-                      <span className="text-xs font-medium uppercase">{day.name}</span>
-                      <span className="text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
-                      <span className="text-xs font-light text-gray-500 capitalize">
-                        {date.toLocaleString("pt-BR", { month: "short" }).replace(".", "")}
-                      </span>
-                    </button>
-                  )
-                })}
+                      return (
+                        <button
+                          key={day.key}
+                          onClick={() => setSelectedDate(date)}
+                          className={[
+                            "flex flex-col items-center justify-center rounded-lg font-bold transition-colors",
+                            "w-20 h-20 sm:w-24 sm:h-24", // menor no mobile
+                            "text-xs sm:text-sm",
+                            isSelected
+                              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                              : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white",
+                          ].join(" ")}
+                        >
+                          <span className="text-[10px] sm:text-xs font-medium uppercase">{day.name}</span>
+                          <span className="text-2xl sm:text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
+                          <span className="text-[10px] sm:text-xs font-light text-gray-500 capitalize">
+                            {date.toLocaleString("pt-BR", { month: "short" }).replace(".", "")}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setWeekOffset((prev) => prev + 1)}
+                  className="shrink-0 p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                  aria-label="Próxima semana"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
-
-              <button
-                onClick={() => setWeekOffset((prev) => prev + 1)}
-                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
-                aria-label="Próxima semana"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
             </div>
 
-            <form onSubmit={handleAddTask} className="flex gap-4 mb-6 bg-gray-900/50 p-6 rounded-lg border border-gray-800">
+            {/* Form responsivo */}
+            <form
+              onSubmit={handleAddTask}
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 bg-gray-900/50 p-4 sm:p-6 rounded-lg border border-gray-800"
+            >
               <input
                 type="text"
                 value={newTaskText}
                 onChange={(e) => setNewTaskText(e.target.value)}
                 placeholder="O que precisa ser feito?"
-                className="flex-grow bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full sm:flex-grow bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
-              <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition">
+
+              <button
+                type="submit"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition"
+              >
                 ADICIONAR TAREFA
               </button>
             </form>
 
-            <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+            {/* Lista responsiva */}
+            <div className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
               <ul className="space-y-3">
                 {tasks
                   .sort((a, b) => Number(a.completed) - Number(b.completed))
                   .map((task) => (
-                    <li key={task.id} className="flex items-center justify-between bg-black/50 p-4 rounded-lg border border-gray-700">
-                      <div className="flex items-center gap-4 flex-1">
+                    <li
+                      key={task.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-black/50 p-4 rounded-lg border border-gray-700"
+                    >
+                      <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
                         <input
                           type="checkbox"
                           checked={task.completed}
                           onChange={() => handleToggleTask(task)}
-                          className="h-6 w-6 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
+                          className="h-6 w-6 shrink-0 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
                         />
-                        <span className={`text-lg ${task.completed ? "line-through text-gray-500" : "text-white"}`}>{task.text}</span>
+                        <span
+                          className={[
+                            "text-base sm:text-lg break-words min-w-0",
+                            task.completed ? "line-through text-gray-500" : "text-white",
+                          ].join(" ")}
+                        >
+                          {task.text}
+                        </span>
                       </div>
+
                       <button
                         onClick={() => handleDeleteTask(task.id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition text-xs"
+                        className="w-full sm:w-auto bg-red-600 text-white px-3 py-2 rounded font-bold hover:bg-red-700 transition text-xs"
                       >
                         DELETAR
                       </button>
                     </li>
                   ))}
               </ul>
+
               {tasks.length === 0 && <p className="text-gray-400 text-center py-4">Nenhuma tarefa encontrada.</p>}
             </div>
           </div>
         )}
+
       </main>
 
       {showProductForm && (
