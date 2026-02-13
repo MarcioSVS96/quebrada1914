@@ -559,8 +559,8 @@ export default function AdminDashboard() {
                   "flex items-center gap-2 px-3 md:px-4 py-3",
                   "font-bold tracking-wide transition rounded-lg",
                   activeTab === tab.id
-                    ? "text-red-500"
-                    : "text-gray-400 hover:text-white",
+                    ? "bg-red-600/20 text-red-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/60",
                 ].join(" ")}
               >
                 <span className="text-xl md:text-2xl">
