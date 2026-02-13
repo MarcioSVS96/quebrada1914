@@ -78,26 +78,46 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
   return (
     <div className="pt-20">
       {/* Hero Section */}
-      <section className="py-16 md:py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent"></div>
+      <section className="py-16 md:py-24 relative overflow-hidden bg-black">
         <div className="max-w-7xl mx-auto px-4 relative">
-          <div className="max-w-3xl">
-            <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-              NA ARQUIBANCADA
-              <br />
-              OU NA <span className="text-red-500">QUEBRADA</span>
-              <br />
-              VISTA O QUE REPRESENTA!
-            </h2>
-            <p className="text-xl md:text-2xl mb-8 text-gray-300 font-medium">
-              Roupas com atitude, direto da periferia pro seu guarda-roupa
-            </p>
-            <button
-              onClick={() => document.getElementById("products-section")?.scrollIntoView({ behavior: "smooth" })}
-              className="btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition"
-            >
-              BORA VER AS PEÇAS
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+            {/* TEXTO */}
+            <div className="max-w-3xl">
+              <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+                NA ARQUIBANCADA
+                <br />
+                OU NA <span className="text-red-500">QUEBRADA</span>
+                <br />
+                VISTA O QUE REPRESENTA!
+              </h2>
+
+              <p className="text-xl md:text-2xl mb-8 text-gray-300 font-medium">
+                Roupas com atitude, direto da periferia pro seu guarda-roupa
+              </p>
+
+              <button
+                onClick={() => document.getElementById("products-section")?.scrollIntoView({ behavior: "smooth" })}
+                className="btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition"
+              >
+                BORA VER AS PEÇAS
+              </button>
+            </div>
+
+            {/* IMAGEM */}
+            <div className="relative w-full">
+              <div
+                className="w-full h-[320px] md:h-[460px] overflow-hidden rounded-2xl"
+                style={{
+                  backgroundImage: "url(/background3.webp)",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                }}
+              >
+                {/* overlay bem leve (opcional). Se quiser 0 contorno, pode apagar esse overlay também */}
+                <div className="w-full h-full bg-gradient-to-l from-black/20 via-transparent to-black/35" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -233,9 +253,8 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                     </div>
                     <div className="flex justify-between items-center w-full mt-4">
                       <div>
-
-                      <span className="text-2xl font-bold text-red-500">R$ {product.price.toFixed(2)}</span>
-                      {product.stock < 999 && <div className="text-xs text-gray-400">Estoque: {product.stock}</div>}
+                        <span className="text-2xl font-bold text-red-500">R$ {product.price.toFixed(2)}</span>
+                        {product.stock < 999 && <div className="text-xs text-gray-400">Estoque: {product.stock}</div>}
                       </div>
                       <button
                         onClick={() => onAddToCart(product.id)}
