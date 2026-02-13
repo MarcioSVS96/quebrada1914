@@ -673,8 +673,10 @@ export default function AdminDashboard() {
 
         {activeTab === "products" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold tracking-wide">GERENCIAR PRODUTOS</h2>
+            {/* Header responsivo */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR PRODUTOS</h2>
+
               <button
                 onClick={() => {
                   setEditingProduct(null)
@@ -683,44 +685,57 @@ export default function AdminDashboard() {
                   setImageError(null)
                   setShowProductForm(true)
                 }}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
               >
                 + ADICIONAR PRODUTO
               </button>
             </div>
 
+            {/* Lista */}
             <div className="grid gap-4">
               {products.map((product) => (
-                <div key={product.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-4 mb-2">
-                        <h3 className="text-xl font-bold">{product.name}</h3>
-                        {product.featured && <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>}
+                <div key={product.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    {/* Conteúdo */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-lg sm:text-xl font-bold break-words">{product.name}</h3>
+
+                        {product.featured && (
+                          <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">
+                            DESTAQUE
+                          </span>
+                        )}
                       </div>
-                      <p className="text-gray-400 mb-2">{product.description}</p>
-                      <div className="flex items-center space-x-6 text-sm">
+
+                      <p className="text-gray-400 mb-3 break-words">{product.description}</p>
+
+                      {/* Infos responsivas */}
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-x-6 text-sm">
                         <span>
                           Preço: <strong className="text-green-400">R$ {product.price.toFixed(2)}</strong>
                         </span>
                         <span>
-                          Categoria: <strong>{product.category}</strong>
+                          Categoria: <strong className="break-words">{product.category}</strong>
                         </span>
                         <span>
                           Estoque: <strong>{product.stock}</strong>
                         </span>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+
+                    {/* Ações responsivas */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       <button
                         onClick={() => startEditProduct(product)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
                       >
                         EDITAR
                       </button>
+
                       <button
                         onClick={() => handleDeleteProduct(product.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
+                        className="w-full sm:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
                       >
                         DELETAR
                       </button>
@@ -731,6 +746,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
 
         {activeTab === "categories" && (
           <div className="space-y-6">
