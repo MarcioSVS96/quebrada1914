@@ -286,7 +286,7 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-wide">
-              COLA NO NOSSO <span className="text-red-500">INSTA</span>
+              NOSSO <span className="text-red-500">INSTAGRAM</span>
             </h3>
             <p className="text-xl text-gray-300 font-medium">Acompanha as novidades, looks e o movimento da quebrada</p>
             <a
