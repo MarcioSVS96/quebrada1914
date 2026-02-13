@@ -59,7 +59,20 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
-              <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914</h1>
+              {/* LOGO */}
+              <button
+                type="button"
+                onClick={() => handlePageChange("home")}
+                className="flex items-center focus:outline-none"
+                aria-label="Ir para início"
+              >
+                <img
+                  src="/img.webp"
+                  alt="Quebrada 1914"
+                  className="h-[56px] md:h-[80px] max-h-[100px] w-auto object-contain select-none"
+                  draggable={false}
+                />
+              </button>
             </div>
 
             {/* Desktop Menu */}
