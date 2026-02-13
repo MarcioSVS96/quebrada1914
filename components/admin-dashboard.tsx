@@ -541,9 +541,9 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <nav className="bg-gray-900/50 border-b border-gray-800">
+      <nav className="bg-gray-900/50 border-b border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-8">
+          <div className="flex justify-center md:justify-start gap-2 md:gap-6">
             {[
               { id: "dashboard", label: "DASHBOARD", icon: "📊" },
               { id: "products", label: "PRODUTOS", icon: "👕" },
@@ -555,17 +555,29 @@ export default function AdminDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-2 px-4 py-4 font-bold tracking-wide transition ${
-                  activeTab === tab.id ? "text-red-500 border-b-2 border-red-500" : "text-gray-400 hover:text-white"
-                }`}
+                className={[
+                  "flex items-center gap-2 px-3 md:px-4 py-3",
+                  "font-bold tracking-wide transition rounded-lg",
+                  activeTab === tab.id
+                    ? "text-red-500"
+                    : "text-gray-400 hover:text-white",
+                ].join(" ")}
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span className="text-xl md:text-2xl">
+                  {tab.icon}
+                </span>
+
+                {/* Texto só aparece no desktop */}
+                <span className="hidden md:inline text-sm">
+                  {tab.label}
+                </span>
               </button>
             ))}
           </div>
         </div>
       </nav>
+
+
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === "dashboard" && (
