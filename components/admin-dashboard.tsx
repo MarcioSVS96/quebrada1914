@@ -659,14 +659,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8 p-6 bg-green-600/10 border border-green-600/30 rounded-lg">
-                <h3 className="text-xl font-bold mb-2 text-green-400">CMS COMPLETO FUNCIONANDO</h3>
-                <p className="text-gray-300">
-                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos, categorias e
-                  visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
-                </p>
-              </div>
             </div>
           </>
         )}
