@@ -1,5 +1,5 @@
 export interface Product {
-  id: string // MongoDB ObjectId é uma string
+  id: string
   name: string
   price: number
   category: string
@@ -11,7 +11,7 @@ export interface Product {
 }
 
 export interface Category {
-  id: string // MongoDB ObjectId é uma string
+  id: string
   name: string
   display_name: string
   icon: string
@@ -37,4 +37,3 @@ export interface Task {
   completed: boolean
   created_at: string
 }
-

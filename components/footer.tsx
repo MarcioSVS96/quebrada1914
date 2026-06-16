@@ -44,7 +44,7 @@ export default function Footer({ categories, onPageChange }: FooterProps) {
               </a>
 
               <a
-                href="https://wa.me/5581997441023"
+                href="https://wa.me/5581992992859"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition"

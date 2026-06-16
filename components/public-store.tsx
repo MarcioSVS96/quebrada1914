@@ -142,7 +142,7 @@ export default function PublicStore() {
     message += `💰 TOTAL GERAL: R$ ${total.toFixed(2)}\n\n`
     message += `🚀 Bora fechar o bonde! Quebrada 1914 sempre representando! ✊`
 
-    const whatsappUrl = `https://wa.me/5581997441023?text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://wa.me/5581992992859?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
 
     clearCart()
