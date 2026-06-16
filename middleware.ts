@@ -1,26 +1,29 @@
-import { withAuth } from "next-auth/middleware"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
-export default withAuth(
-  // `withAuth` estende o objeto `req` com o token do usuário.
-  function middleware(req) {
-    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
-    const isAdminUser = req.nextauth.token?.email === process.env.ADMIN_EMAIL
+export async function middleware(req: NextRequest) {
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  })
 
-    // Se a rota é de admin e o usuário não é o admin, redireciona para a página de não autorizado.
-    if (isAdminRoute && !isAdminUser) {
-      return NextResponse.rewrite(new URL("/auth/unauthorized", req.url))
-    }
-  },
-  {
-    callbacks: {
-      // O middleware só será invocado se o token existir (usuário logado).
-      authorized: ({ token }) => !!token,
-    },
+  if (!token) {
+    const url = req.nextUrl.clone()
+    url.pathname = "/auth/login"
+    return NextResponse.redirect(url)
   }
-)
+
+  const adminEmail = process.env.ADMIN_EMAIL
+
+  if (adminEmail && token.email !== adminEmail) {
+    const url = req.nextUrl.clone()
+    url.pathname = "/auth/unauthorized"
+    return NextResponse.rewrite(url)
+  }
+
+  return NextResponse.next()
+}
 
 export const config = {
-  // Protege todas as rotas de administrador.
   matcher: ["/admin/:path*"],
-};
+}

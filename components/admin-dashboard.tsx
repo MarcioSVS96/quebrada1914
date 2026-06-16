@@ -1,12 +1,21 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react";
-import type { Product, Category, ContactMessage, Task, User } from "@/types";
-import { useSession, signOut } from "next-auth/react"
+import { useState, useEffect } from "react"
+import type { Product, Category, ContactMessage, Task } from "@/types"
+
+type User = {
+  id: string
+  name: string
+  email: string
+}
+
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AdminDashboard() {
+  const supabase = createClient()
+
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -16,13 +25,17 @@ export default function AdminDashboard() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "users" | "messages" | "tasks">("dashboard")
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "categories" | "users" | "messages" | "tasks">(
+    "dashboard",
+  )
   const [showProductForm, setShowProductForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const { data: session } = useSession()
   const router = useRouter()
+
+  // ✅ Substitui NextAuth session por Supabase user
+  const [adminEmail, setAdminEmail] = useState<string | null>(null)
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -33,6 +46,11 @@ export default function AdminDashboard() {
     stock: 0,
     featured: false,
   })
+
+  // ✅ estados para upload automático da imagem
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("")
 
   const [newCategory, setNewCategory] = useState({
     name: "",
@@ -48,6 +66,22 @@ export default function AdminDashboard() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [showUserForm, setShowUserForm] = useState(false)
 
+  // ✅ Pega usuário logado (Supabase) e escuta mudanças
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setAdminEmail(data.user?.email ?? null)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAdminEmail(session?.user?.email ?? null)
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     loadData()
   }, [activeTab])
@@ -62,7 +96,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       // O MongoDB usa _id, vamos mapear para id para manter a consistência da UI
-      const mapId = (item: any) => ({ ...item, id: item._id.toString() })
+      const mapId = (item: any) => ({ ...item, id: item._id?.toString?.() ?? item._id ?? item.id })
 
       const [categoriesRes, productsRes, messagesRes, usersRes] = await Promise.all([
         fetch("/api/categories"),
@@ -78,10 +112,20 @@ export default function AdminDashboard() {
         usersRes.json(),
       ])
 
-      if (categoriesData) setCategories(categoriesData.map(mapId))
-      if (productsData) setProducts(productsData.map(mapId))
-      if (messagesData) setMessages(messagesData.map(mapId))
-      if (usersData) setUsers(usersData.map(mapId))
+      if (Array.isArray(categoriesData)) setCategories(categoriesData.map(mapId))
+      else setCategories([])
+
+      if (Array.isArray(productsData)) setProducts(productsData.map(mapId))
+      else setProducts([])
+
+      if (Array.isArray(messagesData)) setMessages(messagesData.map(mapId))
+      else {
+        console.error("Resposta inesperada de /api/messages:", messagesData)
+        setMessages([])
+      }
+
+      if (Array.isArray(usersData)) setUsers(usersData.map(mapId))
+      else setUsers([])
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -94,11 +138,65 @@ export default function AdminDashboard() {
       const res = await fetch(`/api/tasks?day=${day}`)
       if (!res.ok) throw new Error("Failed to fetch tasks")
       const tasksData = await res.json()
-      const mapId = (item: any) => ({ ...item, id: item._id })
+      const mapId = (item: any) => ({ ...item, id: item._id ?? item.id })
       setTasks(tasksData.map(mapId))
     } catch (error) {
       console.error("Error loading tasks:", error)
       setTasks([]) // Limpa as tarefas em caso de erro
+    }
+  }
+
+  // ✅ Upload automático da imagem no Supabase Storage (sem precisar clicar em "Enviar")
+  const uploadProductImage = async (file: File) => {
+    setImageError(null)
+    setImageUploading(true)
+
+    try {
+      const maxMb = 6
+      const allowed = ["image/png", "image/jpeg", "image/webp"]
+
+      if (!allowed.includes(file.type)) {
+        throw new Error("Formato inválido. Use PNG, JPG ou WEBP.")
+      }
+      if (file.size > maxMb * 1024 * 1024) {
+        throw new Error(`Imagem muito grande. Máximo ${maxMb}MB.`)
+      }
+
+      const { data: userData, error: userErr } = await supabase.auth.getUser()
+      if (userErr) throw userErr
+      if (!userData.user) throw new Error("Você precisa estar logado para enviar imagem.")
+
+      const ext = file.name.split(".").pop() || "jpg"
+      const safeName = file.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[^a-zA-Z0-9-_]/g, "-")
+        .toLowerCase()
+
+      const path = `products/${userData.user.id}/${Date.now()}-${safeName}.${ext}`
+
+      // ⚠️ Se o seu bucket tiver outro nome, troque aqui:
+      const bucket = "product-images"
+
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+        cacheControl: "3600",
+      })
+      if (upErr) throw upErr
+
+      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path)
+      const publicUrl = pub?.publicUrl || ""
+      if (!publicUrl) throw new Error("Não foi possível obter a URL pública da imagem.")
+
+      setNewProduct((prev) => ({ ...prev, image: publicUrl }))
+      setImagePreviewUrl(publicUrl)
+    } catch (err: any) {
+      console.error("Upload image error:", err)
+      setImageError(err?.message || "Erro ao enviar imagem.")
+      setNewProduct((prev) => ({ ...prev, image: "" }))
+      setImagePreviewUrl("")
+    } finally {
+      setImageUploading(false)
     }
   }
 
@@ -117,6 +215,8 @@ export default function AdminDashboard() {
       if (data) {
         setProducts([{ ...data, id: data._id }, ...products])
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+        setImagePreviewUrl("")
+        setImageError(null)
         setShowProductForm(false)
       }
     } catch (error) {
@@ -140,9 +240,11 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id.toString() } : p)))
+        setProducts(products.map((p) => (p.id === editingProduct.id ? { ...data, id: data._id?.toString?.() ?? data._id } : p)))
         setEditingProduct(null)
         setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+        setImagePreviewUrl("")
+        setImageError(null)
         setShowProductForm(false)
       }
     } catch (error) {
@@ -280,10 +382,8 @@ export default function AdminDashboard() {
         body: JSON.stringify({ completed: !task.completed }),
       })
       if (!res.ok) throw new Error("Failed to update task")
-      const updatedTask = await res.json()
-      setTasks((prevTasks) =>
-        prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)),
-      )
+      await res.json()
+      setTasks((prevTasks) => prevTasks.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)))
     } catch (error) {
       console.error("Error updating task:", error)
       alert("Erro ao atualizar tarefa")
@@ -319,7 +419,7 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setUsers([{ ...data, id: data._id.toString() }, ...users])
+        setUsers([{ ...data, id: data._id?.toString?.() ?? data._id }, ...users])
         setNewUser({ name: "", email: "", password: "" })
         setShowUserForm(false)
       }
@@ -347,7 +447,7 @@ export default function AdminDashboard() {
 
       const data = await res.json()
       if (data) {
-        setUsers(users.map((u) => (u.id === editingUser.id ? { ...data, id: data._id.toString() } : u)))
+        setUsers(users.map((u) => (u.id === editingUser.id ? { ...data, id: data._id?.toString?.() ?? data._id } : u)))
         setEditingUser(null)
         setNewUser({ name: "", email: "", password: "" })
         setShowUserForm(false)
@@ -380,6 +480,8 @@ export default function AdminDashboard() {
       stock: product.stock,
       featured: product.featured,
     })
+    setImagePreviewUrl(product.image || "")
+    setImageError(null)
     setShowProductForm(true)
   }
 
@@ -403,9 +505,10 @@ export default function AdminDashboard() {
     setShowUserForm(true)
   }
 
-
+  // ✅ Substitui signOut do NextAuth
   const handleSignOut = async () => {
-    await signOut() // O NextAuth irá redirecionar para a página inicial ("/") conforme configurado.
+    await supabase.auth.signOut()
+    window.location.href = "/"
   }
 
   if (isLoading) {
@@ -426,7 +529,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914 - ADMIN</h1>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-400">{session?.user?.email}</span>
+              <span className="hidden md:inline text-sm text-gray-400">{adminEmail}</span>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
@@ -438,9 +541,9 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <nav className="bg-gray-900/50 border-b border-gray-800">
+      <nav className="bg-gray-900/50 border-b border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-8">
+          <div className="flex justify-center md:justify-start gap-2 md:gap-6">
             {[
               { id: "dashboard", label: "DASHBOARD", icon: "📊" },
               { id: "products", label: "PRODUTOS", icon: "👕" },
@@ -452,17 +555,29 @@ export default function AdminDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-2 px-4 py-4 font-bold tracking-wide transition ${
-                  activeTab === tab.id ? "text-red-500 border-b-2 border-red-500" : "text-gray-400 hover:text-white"
-                }`}
+                className={[
+                  "flex items-center gap-2 px-3 md:px-4 py-3",
+                  "font-bold tracking-wide transition rounded-lg",
+                  activeTab === tab.id
+                    ? "bg-red-600/20 text-red-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/60",
+                ].join(" ")}
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span className="text-xl md:text-2xl">
+                  {tab.icon}
+                </span>
+
+                {/* Texto só aparece no desktop */}
+                <span className="hidden md:inline text-sm">
+                  {tab.label}
+                </span>
               </button>
             ))}
           </div>
         </div>
       </nav>
+
+
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === "dashboard" && (
@@ -491,9 +606,7 @@ export default function AdminDashboard() {
               <div className="bg-gray-900/50 rounded-lg p-6 text-center border border-gray-800">
                 <div className="text-3xl font-bold text-purple-500">
                   R${" "}
-                  {products.length > 0
-                    ? (products.reduce((sum, p) => sum + p.price, 0) / products.length).toFixed(2)
-                    : "0"}
+                  {products.length > 0 ? (products.reduce((sum, p) => sum + p.price, 0) / products.length).toFixed(2) : "0"}
                 </div>
                 <div className="text-gray-400 font-bold tracking-wide text-sm">PREÇO MÉDIO</div>
               </div>
@@ -502,8 +615,8 @@ export default function AdminDashboard() {
             <div className="bg-gray-900/50 rounded-lg p-8 border border-gray-800">
               <h2 className="text-3xl font-bold mb-6 tracking-wide">PAINEL ADMINISTRATIVO</h2>
               <p className="text-gray-300 mb-6">
-                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e
-                acompanhar as estatísticas da loja.
+                Bem-vindo ao painel administrativo da Quebrada 1914! Aqui você pode gerenciar produtos, categorias e acompanhar
+                as estatísticas da loja.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -519,9 +632,7 @@ export default function AdminDashboard() {
                               R$ {product.price.toFixed(2)} - {product.category}
                             </p>
                           </div>
-                          {product.featured && (
-                            <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>
-                          )}
+                          {product.featured && <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>}
                         </div>
                       </div>
                     ))}
@@ -548,76 +659,75 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8 p-6 bg-green-600/10 border border-green-600/30 rounded-lg">
-                <h3 className="text-xl font-bold mb-2 text-green-400">CMS COMPLETO FUNCIONANDO</h3>
-                <p className="text-gray-300">
-                  Sistema completo de gerenciamento implementado! Você pode adicionar, editar e deletar produtos,
-                  categorias e visualizar mensagens. Todas as alterações são salvas no MongoDB e refletidas na loja.
-                </p>
-              </div>
             </div>
           </>
         )}
 
         {activeTab === "products" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold tracking-wide">GERENCIAR PRODUTOS</h2>
+            {/* Header responsivo */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR PRODUTOS</h2>
+
               <button
                 onClick={() => {
                   setEditingProduct(null)
-                  setNewProduct({
-                    name: "",
-                    price: 0,
-                    category: "",
-                    description: "",
-                    image: "",
-                    stock: 0,
-                    featured: false,
-                  })
+                  setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+                  setImagePreviewUrl("")
+                  setImageError(null)
                   setShowProductForm(true)
                 }}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
               >
                 + ADICIONAR PRODUTO
               </button>
             </div>
 
+            {/* Lista */}
             <div className="grid gap-4">
               {products.map((product) => (
-                <div key={product.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-4 mb-2">
-                        <h3 className="text-xl font-bold">{product.name}</h3>
+                <div key={product.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    {/* Conteúdo */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-lg sm:text-xl font-bold break-words">{product.name}</h3>
+
                         {product.featured && (
-                          <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">DESTAQUE</span>
+                          <span className="bg-yellow-600 px-2 py-1 rounded text-xs font-bold">
+                            DESTAQUE
+                          </span>
                         )}
                       </div>
-                      <p className="text-gray-400 mb-2">{product.description}</p>
-                      <div className="flex items-center space-x-6 text-sm">
+
+                      <p className="text-gray-400 mb-3 break-words">{product.description}</p>
+
+                      {/* Infos responsivas */}
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-x-6 text-sm">
                         <span>
                           Preço: <strong className="text-green-400">R$ {product.price.toFixed(2)}</strong>
                         </span>
                         <span>
-                          Categoria: <strong>{product.category}</strong>
+                          Categoria: <strong className="break-words">{product.category}</strong>
                         </span>
                         <span>
                           Estoque: <strong>{product.stock}</strong>
                         </span>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+
+                    {/* Ações responsivas */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       <button
                         onClick={() => startEditProduct(product)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
                       >
                         EDITAR
                       </button>
+
                       <button
                         onClick={() => handleDeleteProduct(product.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
+                        className="w-full sm:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
                       >
                         DELETAR
                       </button>
@@ -628,6 +738,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
 
         {activeTab === "categories" && (
           <div className="space-y-6">
@@ -683,15 +794,17 @@ export default function AdminDashboard() {
 
         {activeTab === "users" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold tracking-wide">GERENCIAR USUÁRIOS</h2>
+            {/* Header responsivo */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR USUÁRIOS</h2>
+
               <button
                 onClick={() => {
                   setEditingUser(null)
                   setNewUser({ name: "", email: "", password: "" })
                   setShowUserForm(true)
                 }}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition"
               >
                 + ADICIONAR USUÁRIO
               </button>
@@ -699,30 +812,40 @@ export default function AdminDashboard() {
 
             <div className="grid gap-4">
               {users.map((user) => (
-                <div key={user.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-4">
-                      <div className="bg-gray-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl">
+                <div key={user.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Left */}
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="bg-gray-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl shrink-0">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <h3 className="text-xl font-bold">{user.name}</h3>
-                        <p className="text-gray-400">{user.email}</p>
-                        {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
-                          <span className="text-xs font-bold text-red-500">ADMIN</span>
-                        )}
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg sm:text-xl font-bold break-words">{user.name}</h3>
+
+                          {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+                            <span className="text-xs font-bold text-red-500">ADMIN</span>
+                          )}
+                        </div>
+
+                        {/* email não estoura no mobile */}
+                        <p className="text-gray-400 break-all">{user.email}</p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       <button
                         onClick={() => startEditUser(user)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
                       >
                         EDITAR
                       </button>
+
                       <button
                         onClick={() => handleDeleteUser(user.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition disabled:bg-gray-500"
+                        className="w-full sm:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition disabled:bg-gray-500"
                         disabled={user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL}
                       >
                         DELETAR
@@ -735,9 +858,11 @@ export default function AdminDashboard() {
           </div>
         )}
 
+
         {activeTab === "messages" && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold tracking-wide">MENSAGENS DE CONTATO</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">MENSAGENS DE CONTATO</h2>
+
             {messages.length === 0 ? (
               <div className="bg-gray-900/50 rounded-lg p-8 text-center border border-gray-800">
                 <div className="text-5xl mb-4">📭</div>
@@ -746,23 +871,34 @@ export default function AdminDashboard() {
             ) : (
               <div className="grid gap-4">
                 {messages.map((message) => (
-                  <div key={message.id} className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-4 mb-2">
-                          <h3 className="text-xl font-bold">{message.name}</h3>
-                          <a href={`mailto:${message.email}`} className="text-sm text-red-400 hover:underline">
+                  <div key={message.id} className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        {/* Nome + email responsivo */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 mb-2">
+                          <h3 className="text-lg sm:text-xl font-bold break-words">{message.name}</h3>
+
+                          <a
+                            href={`mailto:${message.email}`}
+                            className="text-sm text-red-400 hover:underline break-all"
+                          >
                             {message.email}
                           </a>
                         </div>
-                        <p className="text-gray-300 mb-4 whitespace-pre-wrap">{message.message}</p>
+
+                        <p className="text-gray-300 mb-4 whitespace-pre-wrap break-words">
+                          {message.message}
+                        </p>
+
                         <p className="text-xs text-gray-500">
                           Recebido em: {new Date(message.created_at).toLocaleString("pt-BR")}
                         </p>
                       </div>
+
+                      {/* Botão responsivo */}
                       <button
                         onClick={() => handleDeleteMessage(message.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
+                        className="w-full lg:w-auto bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 transition"
                       >
                         DELETAR
                       </button>
@@ -774,114 +910,144 @@ export default function AdminDashboard() {
           </div>
         )}
 
+
         {activeTab === "tasks" && (
           <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-wide">GERENCIAR TAREFAS</h2>
 
-            <div className="flex items-center justify-center gap-4 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
-              <button
-                onClick={() => setWeekOffset((prev) => prev - 1)}
-                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
-                aria-label="Semana anterior"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
+            {/* Seletor de semana/dias - responsivo */}
+            <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setWeekOffset((prev) => prev - 1)}
+                  className="shrink-0 p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                  aria-label="Semana anterior"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
 
-              <div className="flex justify-center gap-2">
-              {[
-                { key: "segunda", name: "Segunda" },
-                { key: "terca", name: "Terça" },
-                { key: "quarta", name: "Quarta" },
-                { key: "quinta", name: "Quinta" },
-                { key: "sexta", name: "Sexta" },
-                { key: "sabado", name: "Sábado" },
-                { key: "domingo", name: "Domingo" },
-              ].map((day, index) => {
-                const today = new Date();
-                today.setDate(today.getDate() + weekOffset * 7);
-                const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
-                const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
-                const date = new Date(today)
-                date.setDate(today.getDate() - dayIndex + index)
+                {/* Scroll horizontal no mobile */}
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex gap-2 min-w-max">
+                    {[
+                      { key: "segunda", name: "Segunda" },
+                      { key: "terca", name: "Terça" },
+                      { key: "quarta", name: "Quarta" },
+                      { key: "quinta", name: "Quinta" },
+                      { key: "sexta", name: "Sexta" },
+                      { key: "sabado", name: "Sábado" },
+                      { key: "domingo", name: "Domingo" },
+                    ].map((day, index) => {
+                      const today = new Date()
+                      today.setDate(today.getDate() + weekOffset * 7)
+                      const currentDayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+                      const dayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
+                      const date = new Date(today)
+                      date.setDate(today.getDate() - dayIndex + index)
 
-                const isSelected = selectedDate.toDateString() === date.toDateString();
+                      const isSelected = selectedDate.toDateString() === date.toDateString()
 
-                return (
-                  <button
-                    key={day.key}
-                    onClick={() => setSelectedDate(date)}
-                    className={`flex flex-col items-center justify-center w-24 h-24 rounded-lg font-bold transition-colors text-sm ${
-                      isSelected
-                        ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                        : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
-                    }`}
-                  >
-                    <span className="text-xs font-medium uppercase">{day.name}</span>
-                    <span className="text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
-                    <span className="text-xs font-light text-gray-500 capitalize">{date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}</span>
-                  </button>
-                )
-              })}
+                      return (
+                        <button
+                          key={day.key}
+                          onClick={() => setSelectedDate(date)}
+                          className={[
+                            "flex flex-col items-center justify-center rounded-lg font-bold transition-colors",
+                            "w-20 h-20 sm:w-24 sm:h-24", // menor no mobile
+                            "text-xs sm:text-sm",
+                            isSelected
+                              ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
+                              : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white",
+                          ].join(" ")}
+                        >
+                          <span className="text-[10px] sm:text-xs font-medium uppercase">{day.name}</span>
+                          <span className="text-2xl sm:text-3xl font-black">{String(date.getDate()).padStart(2, "0")}</span>
+                          <span className="text-[10px] sm:text-xs font-light text-gray-500 capitalize">
+                            {date.toLocaleString("pt-BR", { month: "short" }).replace(".", "")}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setWeekOffset((prev) => prev + 1)}
+                  className="shrink-0 p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
+                  aria-label="Próxima semana"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-              <button
-                onClick={() => setWeekOffset((prev) => prev + 1)}
-                className="p-2 rounded-full bg-gray-800 text-white hover:bg-red-600 transition-colors"
-                aria-label="Próxima semana"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTask} className="flex gap-4 mb-6 bg-gray-900/50 p-6 rounded-lg border border-gray-800">
+            {/* Form responsivo */}
+            <form
+              onSubmit={handleAddTask}
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 bg-gray-900/50 p-4 sm:p-6 rounded-lg border border-gray-800"
+            >
               <input
                 type="text"
                 value={newTaskText}
                 onChange={(e) => setNewTaskText(e.target.value)}
                 placeholder="O que precisa ser feito?"
-                className="flex-grow bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full sm:flex-grow bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
-              <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition">
+
+              <button
+                type="submit"
+                className="w-full sm:w-auto bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition"
+              >
                 ADICIONAR TAREFA
               </button>
             </form>
 
-            <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+            {/* Lista responsiva */}
+            <div className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
               <ul className="space-y-3">
-                {tasks.sort((a, b) => Number(a.completed) - Number(b.completed)).map((task) => (
-                  <li key={task.id} className="flex items-center justify-between bg-black/50 p-4 rounded-lg border border-gray-700">
-                    <div className="flex items-center gap-4 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => handleToggleTask(task)}
-                        className="h-6 w-6 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
-                      />
-                      <span
-                        className={`text-lg ${
-                          task.completed ? "line-through text-gray-500" : "text-white"
-                        }`}
-                      >
-                        {task.text}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
-                      className="bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 transition text-xs"
+                {tasks
+                  .sort((a, b) => Number(a.completed) - Number(b.completed))
+                  .map((task) => (
+                    <li
+                      key={task.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-black/50 p-4 rounded-lg border border-gray-700"
                     >
-                      DELETAR
-                    </button>
-                  </li>
-                ))}
+                      <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => handleToggleTask(task)}
+                          className="h-6 w-6 shrink-0 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
+                        />
+                        <span
+                          className={[
+                            "text-base sm:text-lg break-words min-w-0",
+                            task.completed ? "line-through text-gray-500" : "text-white",
+                          ].join(" ")}
+                        >
+                          {task.text}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteTask(task.id)}
+                        className="w-full sm:w-auto bg-red-600 text-white px-3 py-2 rounded font-bold hover:bg-red-700 transition text-xs"
+                      >
+                        DELETAR
+                      </button>
+                    </li>
+                  ))}
               </ul>
+
               {tasks.length === 0 && <p className="text-gray-400 text-center py-4">Nenhuma tarefa encontrada.</p>}
             </div>
           </div>
         )}
+
       </main>
 
       {showProductForm && (
@@ -899,6 +1065,7 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">PREÇO</label>
@@ -922,6 +1089,7 @@ export default function AdminDashboard() {
                   />
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm font-bold mb-2">CATEGORIA</label>
                 <select
@@ -938,6 +1106,7 @@ export default function AdminDashboard() {
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-bold mb-2">DESCRIÇÃO</label>
                 <textarea
@@ -947,16 +1116,60 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+
+              {/* ✅ Upload automático */}
               <div>
-                <label className="block text-sm font-bold mb-2">URL DA IMAGEM</label>
+                <label className="block text-sm font-bold mb-2">IMAGEM DO PRODUTO (UPLOAD)</label>
+
                 <input
-                  type="url"
-                  value={newProduct.image}
-                  onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) uploadProductImage(file)
+                  }}
                   className="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white"
-                  placeholder="https://exemplo.com/imagem.jpg"
                 />
+
+                <div className="mt-2 flex items-center gap-3">
+                  {imageUploading ? (
+                    <span className="text-sm text-yellow-400 font-bold">Enviando imagem...</span>
+                  ) : newProduct.image ? (
+                    <span className="text-sm text-green-400 font-bold">Imagem enviada ✅</span>
+                  ) : (
+                    <span className="text-sm text-gray-400">Nenhuma imagem selecionada.</span>
+                  )}
+                </div>
+
+                {imageError && (
+                  <div className="mt-2 p-3 bg-red-600/20 border border-red-600/40 rounded">
+                    <p className="text-sm text-red-300 font-bold">{imageError}</p>
+                  </div>
+                )}
+
+                {(imagePreviewUrl || newProduct.image) && (
+                  <div className="mt-4">
+                    <p className="text-xs text-gray-400 mb-2">Pré-visualização</p>
+                    <img
+                      src={imagePreviewUrl || newProduct.image}
+                      alt="Preview"
+                      className="w-full max-h-64 object-contain bg-black/40 border border-gray-700 rounded"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <label className="block text-xs font-bold mb-1 text-gray-300">URL GERADA (somente leitura)</label>
+                  <input
+                    type="text"
+                    value={newProduct.image}
+                    readOnly
+                    className="w-full p-3 bg-gray-800/60 rounded border border-gray-700 text-gray-300"
+                    placeholder="A URL vai aparecer aqui após o upload"
+                  />
+                </div>
               </div>
+
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -969,10 +1182,12 @@ export default function AdminDashboard() {
                   PRODUTO EM DESTAQUE
                 </label>
               </div>
+
               <div className="flex space-x-4 pt-4">
                 <button
                   type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
+                  disabled={imageUploading}
+                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {editingProduct ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
@@ -981,15 +1196,9 @@ export default function AdminDashboard() {
                   onClick={() => {
                     setShowProductForm(false)
                     setEditingProduct(null)
-                    setNewProduct({
-                      name: "",
-                      price: 0,
-                      category: "",
-                      description: "",
-                      image: "",
-                      stock: 0,
-                      featured: false,
-                    })
+                    setNewProduct({ name: "", price: 0, category: "", description: "", image: "", stock: 0, featured: false })
+                    setImagePreviewUrl("")
+                    setImageError(null)
                   }}
                   className="bg-gray-600 text-white px-6 py-3 rounded font-bold hover:bg-gray-700 transition"
                 >
@@ -1040,10 +1249,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
-                >
+                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
                   {editingCategory ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button
@@ -1100,10 +1306,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition"
-                >
+                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">
                   {editingUser ? "ATUALIZAR" : "ADICIONAR"}
                 </button>
                 <button

@@ -78,26 +78,46 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
   return (
     <div className="pt-20">
       {/* Hero Section */}
-      <section className="py-16 md:py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent"></div>
+      <section className="py-16 md:py-24 relative overflow-hidden bg-black">
         <div className="max-w-7xl mx-auto px-4 relative">
-          <div className="max-w-3xl">
-            <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-              NA ARQUIBANCADA
-              <br />
-              OU NA <span className="text-red-500">QUEBRADA</span>
-              <br />
-              VISTA O QUE REPRESENTA!
-            </h2>
-            <p className="text-xl md:text-2xl mb-8 text-gray-300 font-medium">
-              Roupas com atitude, direto da periferia pro seu guarda-roupa
-            </p>
-            <button
-              onClick={() => document.getElementById("products-section")?.scrollIntoView({ behavior: "smooth" })}
-              className="btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition"
-            >
-              BORA VER AS PEÇAS
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+            {/* TEXTO */}
+            <div className="max-w-3xl">
+              <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+                NA ARQUIBANCADA
+                <br />
+                OU NA <span className="text-red-500">QUEBRADA</span>
+                <br />
+                VISTA O QUE REPRESENTA!
+              </h2>
+
+              <p className="text-xl md:text-2xl mb-8 text-gray-300 font-medium">
+                Roupas com atitude, direto da periferia pro seu guarda-roupa
+              </p>
+
+              <button
+                onClick={() => document.getElementById("products-section")?.scrollIntoView({ behavior: "smooth" })}
+                className="btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition"
+              >
+                BORA VER AS PEÇAS
+              </button>
+            </div>
+
+            {/* IMAGEM */}
+            <div className="relative w-full">
+              <div
+                className="w-full h-[320px] md:h-[460px] overflow-hidden rounded-2xl"
+                style={{
+                  backgroundImage: "url(/background3.webp)",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                }}
+              >
+                {/* overlay bem leve (opcional). Se quiser 0 contorno, pode apagar esse overlay também */}
+                <div className="w-full h-full bg-gradient-to-l from-black/20 via-transparent to-black/35" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -212,7 +232,7 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                       ESGOTADO
                     </div>
                   )}
-                  <div className="h-48 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
+                  <div className="h-64 md:h-72 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
                     {product.image ? (
                       <img
                         src={product.image || "/placeholder.svg"}
@@ -226,10 +246,12 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                       </>
                     )}
                   </div>
-                  <div className="p-6">
-                    <h4 className="font-bold text-lg mb-2 tracking-wide">{product.name}</h4>
-                    <p className="text-gray-400 text-sm mb-4 leading-relaxed line-clamp-2">{product.description}</p>
-                    <div className="flex justify-between items-center">
+                  <div className="p-5 flex flex-col items-center text-center">
+                    <div className="flex flex-col gap-1 items-center">
+                      <h4 className="font-bold text-lg tracking-wide">{product.name}</h4>
+                      <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">{product.description}</p>
+                    </div>
+                    <div className="flex justify-between items-center w-full mt-4">
                       <div>
                         <span className="text-2xl font-bold text-red-500">R$ {product.price.toFixed(2)}</span>
                         {product.stock < 999 && <div className="text-xs text-gray-400">Estoque: {product.stock}</div>}
@@ -241,7 +263,14 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
                           product.stock === 0 ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                       >
-                        {product.stock === 0 ? "ESGOTADO" : "LANÇA NO CARRINHO"}
+                        {product.stock === 0 ? (
+                          "ESGOTADO"
+                        ) : (
+                          <>
+                            <span aria-hidden="true">🛒</span>
+                            <span className="sr-only">Adicionar ao carrinho</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -255,60 +284,71 @@ export default function ProductsSection({ products, categories, onAddToCart }: P
       {/* Instagram Section */}
       <section className="py-16 bg-gradient-to-r from-gray-900/50 to-black/50">
         <div className="max-w-7xl mx-auto px-4">
+          
+          {/* Header */}
           <div className="text-center mb-12">
             <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-wide">
-              COLA NO NOSSO <span className="text-red-500">INSTA</span>
+              NOSSO <span className="text-red-500">INSTAGRAM</span>
             </h3>
-            <p className="text-xl text-gray-300 font-medium">Acompanha as novidades, looks e o movimento da quebrada</p>
+
+            <p className="text-xl text-gray-300 font-medium">
+              Acompanha as novidades, looks e o movimento da quebrada
+            </p>
+
             <a
               href="https://instagram.com/quebrada1914"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block mt-6 btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition"
+              className="inline-block mt-6 btn-quebrada text-white px-8 py-4 rounded-lg font-bold text-lg tracking-wide transition hover:scale-105"
             >
               @QUEBRADA1914 📷
             </a>
           </div>
 
-          {/* Instagram Feed Simulation */}
+          {/* Feed Simulation */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="aspect-square bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center relative overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition"></div>
-              <span className="text-4xl relative z-10">👕</span>
-              <div className="absolute bottom-2 left-2 text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition">
-                Nova coleção chegando! 🔥
+            
+            {[
+              "Nova coleção chegando! 🔥",
+              "Domingo tem jogo! 🏟️",
+              "Moletom premium disponível!",
+              "Estilo que representa! ✊",
+            ].map((text, index) => (
+              
+              <div
+                key={index}
+                className="aspect-square bg-gray-900 rounded-lg flex items-center justify-center relative overflow-hidden group cursor-pointer border border-gray-800"
+              >
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition"></div>
+
+                {/* Imagem */}
+                <img
+                  src="/icon.webp"
+                  alt="Instagram Quebrada 1914"
+                  className="w-16 h-16 object-contain relative z-10 opacity-80 group-hover:scale-110 transition"
+                />
+
+                {/* Texto Hover */}
+                <div className="absolute bottom-2 left-2 text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition">
+                  {text}
+                </div>
               </div>
-            </div>
-            <div className="aspect-square bg-gradient-to-br from-red-600 to-orange-600 rounded-lg flex items-center justify-center relative overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition"></div>
-              <span className="text-4xl relative z-10">⚽</span>
-              <div className="absolute bottom-2 left-2 text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition">
-                Domingo tem jogo! 🏟️
-              </div>
-            </div>
-            <div className="aspect-square bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center relative overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition"></div>
-              <span className="text-4xl relative z-10">🧥</span>
-              <div className="absolute bottom-2 left-2 text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition">
-                Moletom premium disponível!
-              </div>
-            </div>
-            <div className="aspect-square bg-gradient-to-br from-green-600 to-teal-600 rounded-lg flex items-center justify-center relative overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition"></div>
-              <span className="text-4xl relative z-10">🧢</span>
-              <div className="absolute bottom-2 left-2 text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition">
-                Estilo que representa! ✊
-              </div>
-            </div>
+
+            ))}
           </div>
 
+          {/* Footer */}
           <div className="text-center mt-8">
             <p className="text-gray-400 font-medium">
-              Marca a gente nas suas fotos usando <span className="text-red-500 font-bold">#Quebrada1914</span>
+              Marca a gente nas suas fotos usando{" "}
+              <span className="text-red-500 font-bold">#Quebrada1914</span>
             </p>
           </div>
+
         </div>
       </section>
+
     </div>
   )
 }

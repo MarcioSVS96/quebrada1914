@@ -1,68 +1,61 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-import clientPromise from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
-// Atualizar uma tarefa (marcar como completa/incompleta)
+// Atualizar uma tarefa (apenas admin)
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || !session.user) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
   }
-  // Apenas o administrador pode modificar tarefas
   if (session.user.email !== process.env.ADMIN_EMAIL) {
-    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
   }
 
   try {
     const { completed } = await request.json()
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
 
-    const result = await db.collection('tasks').findOneAndUpdate(
-      { _id: new ObjectId(params.id) }, // Admin pode editar qualquer tarefa
-      { $set: { completed } },
-      { returnDocument: 'after' }
-    )
+    const { data, error } = await supabaseAdmin
+      .from("tasks")
+      .update({ completed })
+      .eq("id", params.id)
+      .select("*")
+      .single()
 
-    if (!result) {
-      return NextResponse.json({ error: 'Tarefa não encontrada ou não autorizada' }, { status: 404 })
+    if (error) {
+      console.error("[api/tasks/[id] PUT] supabase error:", error)
+      return NextResponse.json({ error: "Erro ao atualizar tarefa" }, { status: 500 })
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json({ ...data, _id: data.id })
   } catch (e) {
-    console.error(e)
-    return NextResponse.json({ error: 'Erro ao atualizar tarefa' }, { status: 500 })
+    console.error("[api/tasks/[id] PUT] error:", e)
+    return NextResponse.json({ error: "Erro ao atualizar tarefa" }, { status: 500 })
   }
 }
 
-// Deletar uma tarefa
+// Deletar uma tarefa (apenas admin)
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || !session.user) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
   }
-  // Apenas o administrador pode deletar tarefas
   if (session.user.email !== process.env.ADMIN_EMAIL) {
-    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
   }
 
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
+    const { error } = await supabaseAdmin.from("tasks").delete().eq("id", params.id)
 
-    const result = await db.collection('tasks').deleteOne({
-      _id: new ObjectId(params.id) // Admin pode deletar qualquer tarefa
-    })
-
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Tarefa não encontrada ou não autorizada' }, { status: 404 })
+    if (error) {
+      console.error("[api/tasks/[id] DELETE] supabase error:", error)
+      return NextResponse.json({ error: "Erro ao deletar tarefa" }, { status: 500 })
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (e) {
-    console.error(e)
-    return NextResponse.json({ error: 'Erro ao deletar tarefa' }, { status: 500 })
+    console.error("[api/tasks/[id] DELETE] error:", e)
+    return NextResponse.json({ error: "Erro ao deletar tarefa" }, { status: 500 })
   }
 }

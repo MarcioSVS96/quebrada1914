@@ -1,51 +1,69 @@
-import { NextResponse } from 'next/server'
-import clientPromise from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+  }
+
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
     const { id } = params
+    if (!id) return NextResponse.json({ error: "ID de categoria inválido" }, { status: 400 })
+
     const body = await request.json()
 
-    // Garante que apenas os campos esperados sejam atualizados
     const categoryDataToUpdate = {
       name: body.name,
       display_name: body.display_name,
       icon: body.icon,
     }
 
-    const result = await db
-      .collection('categories')
-      .findOneAndUpdate({ _id: new ObjectId(id) }, { $set: categoryDataToUpdate }, { returnDocument: 'after' })
+    const { data, error } = await supabaseAdmin
+      .from("categories")
+      .update(categoryDataToUpdate)
+      .eq("id", id)
+      .select("*")
+      .single()
 
-    if (!result) {
-      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    if (error) {
+      console.error(error)
+      return NextResponse.json({ error: "Error updating category" }, { status: 500 })
     }
 
-    return NextResponse.json(result)
+    if (!data) {
+      return NextResponse.json({ error: "Category not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ ...data, _id: data.id })
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'Error updating category' }, { status: 500 })
+    return NextResponse.json({ error: "Error updating category" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.email !== process.env.ADMIN_EMAIL) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+  }
+
   try {
-    const client = await clientPromise
-    const db = client.db(process.env.MONGODB_DB)
     const { id } = params
+    if (!id) return NextResponse.json({ error: "ID de categoria inválido" }, { status: 400 })
 
-    const result = await db.collection('categories').deleteOne({ _id: new ObjectId(id) })
+    const { error } = await supabaseAdmin.from("categories").delete().eq("id", id)
 
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    if (error) {
+      console.error(error)
+      return NextResponse.json({ error: "Error deleting category" }, { status: 500 })
     }
 
-    return NextResponse.json({ message: 'Category deleted' }, { status: 200 })
+    return NextResponse.json({ message: "Category deleted" }, { status: 200 })
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'Error deleting category' }, { status: 500 })
+    return NextResponse.json({ error: "Error deleting category" }, { status: 500 })
   }
 }

@@ -1,14 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { useSession, signOut } from "next-auth/react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-
-interface CartItem {
-  id: number
-  quantity: number
-  price: number
-}
+import { useRouter } from "next/navigation"
+import type { CartItem } from "@/types"
+import { createClient } from "@/lib/supabase/client"
 
 interface HeaderProps {
   cart: CartItem[]
@@ -18,19 +14,43 @@ interface HeaderProps {
 }
 
 export default function Header({ cart, onCartToggle, onPageChange, currentPage }: HeaderProps) {
+  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { data: session, status } = useSession()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
+  useEffect(() => {
+    let mounted = true
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return
+      setUserEmail(data.user?.email ?? null)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null)
+    })
+
+    return () => {
+      mounted = false
+      sub.subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  const toggleMobileMenu = () => setIsMobileMenuOpen((v) => !v)
 
   const handlePageChange = (page: string) => {
     onPageChange(page)
     setIsMobileMenuOpen(false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
   }
 
   return (
@@ -39,7 +59,20 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
-              <h1 className="text-2xl md:text-3xl font-bold graffiti-text tracking-wider">QUEBRADA 1914</h1>
+              {/* LOGO */}
+              <button
+                type="button"
+                onClick={() => handlePageChange("home")}
+                className="flex items-center focus:outline-none"
+                aria-label="Ir para início"
+              >
+                <img
+                  src="/img.webp"
+                  alt="Quebrada 1914"
+                  className="h-[56px] md:h-[80px] max-h-[100px] w-auto object-contain select-none"
+                  draggable={false}
+                />
+              </button>
             </div>
 
             {/* Desktop Menu */}
@@ -75,17 +108,16 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                 onClick={onCartToggle}
                 className="relative btn-quebrada text-white px-4 py-2 rounded font-bold tracking-wide transition"
               >
-                🛒 CARRINHO ({totalItems})<span className="text-xs block">R$ {totalPrice.toFixed(2)}</span>
+                🛒 CARRINHO ({totalItems})
+                <span className="text-xs block">R$ {totalPrice.toFixed(2)}</span>
               </button>
 
               {/* Auth Buttons */}
-              {status === "loading" ? (
-                <div className="text-sm text-gray-500">...</div>
-              ) : session ? (
+              {/* {userEmail ? (
                 <div className="hidden md:flex items-center space-x-4">
-                  <span className="text-sm text-gray-300">{session.user?.name || session.user?.email}</span>
+                  <span className="text-sm text-gray-300">{userEmail}</span>
                   <button
-                    onClick={() => signOut({ callbackUrl: "/" })}
+                    onClick={handleLogout}
                     className="bg-gray-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-600 transition text-xs"
                   >
                     SAIR
@@ -102,8 +134,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                     </button>
                   </Link>
                 </div>
-              )}
-
+              )}  */}
             </div>
           </div>
         </div>
@@ -111,7 +142,9 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
 
       {/* Mobile Menu */}
       <div
-        className={`mobile-menu fixed top-0 left-0 w-64 h-full bg-black/95 backdrop-blur-sm z-40 md:hidden ${isMobileMenuOpen ? "open" : ""}`}
+        className={`mobile-menu fixed top-0 left-0 w-64 h-full bg-black/95 backdrop-blur-sm z-40 md:hidden ${
+          isMobileMenuOpen ? "open" : ""
+        }`}
       >
         <div className="p-6 pt-20">
           <nav className="space-y-6">
@@ -133,12 +166,13 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
             >
               CONTATO
             </button>
-            <div className="border-t border-gray-700 pt-6 mt-6">
-              {session ? (
+
+            {/* <div className="border-t border-gray-700 pt-6 mt-6">
+              {userEmail ? (
                 <div className="space-y-4">
-                  <span className="block text-gray-400 text-sm">{session.user?.name}</span>
+                  <span className="block text-gray-400 text-sm">{userEmail}</span>
                   <button
-                    onClick={() => signOut({ callbackUrl: "/" })}
+                    onClick={handleLogout}
                     className="w-full bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
                   >
                     SAIR
@@ -158,7 +192,7 @@ export default function Header({ cart, onCartToggle, onPageChange, currentPage }
                   </Link>
                 </div>
               )}
-            </div>
+            </div> */}
           </nav>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,21 +23,31 @@ export default function RegisterPage() {
     setError(null)
 
     try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name }, // guarda o nome no user_metadata
+        },
       })
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Falha ao registrar.")
+      if (error) {
+        // mensagens comuns do Supabase
+        if (error.message.toLowerCase().includes("already registered")) {
+          setError("Este email já está em uso.")
+        } else {
+          setError(error.message || "Falha ao registrar.")
+        }
+        return
       }
 
-      // Redireciona para a página de login após o sucesso
+      // Se o projeto estiver com confirmação de email ativa, o usuário vai precisar confirmar.
       router.push("/login")
-    } catch (registerError: unknown) {
-      setError(registerError instanceof Error ? registerError.message : "Ocorreu um erro ao tentar registrar.")
+      router.refresh()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ocorreu um erro ao tentar registrar.")
     } finally {
       setIsLoading(false)
     }
@@ -54,21 +65,44 @@ export default function RegisterPage() {
             <form onSubmit={handleRegister} className="space-y-6">
               <div>
                 <Label htmlFor="name" className="text-gray-300 font-bold tracking-wide">NOME</Label>
-                <Input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="bg-black border-gray-700 text-white focus:border-red-500" />
+                <Input
+                  id="name"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="bg-black border-gray-700 text-white focus:border-red-500"
+                />
               </div>
               <div>
                 <Label htmlFor="email" className="text-gray-300 font-bold tracking-wide">EMAIL</Label>
-                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-black border-gray-700 text-white focus:border-red-500" />
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-black border-gray-700 text-white focus:border-red-500"
+                />
               </div>
               <div>
                 <Label htmlFor="password" className="text-gray-300 font-bold tracking-wide">SENHA</Label>
-                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-black border-gray-700 text-white focus:border-red-500" />
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-black border-gray-700 text-white focus:border-red-500"
+                />
               </div>
+
               {error && (
                 <div className="p-3 bg-red-600/20 border border-red-600/50 rounded-lg">
                   <p className="text-sm text-red-300 font-medium">{error}</p>
                 </div>
               )}
+
               <Button type="submit" className="w-full btn-quebrada text-white font-bold tracking-wide" disabled={isLoading}>
                 {isLoading ? "CRIANDO..." : "CRIAR CONTA"}
               </Button>
